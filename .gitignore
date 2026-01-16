@@ -35,3 +35,7 @@ test-results/
 # Temporary files
 tmp/
 temp/
+
+# Database
+*.db
+backend/data/

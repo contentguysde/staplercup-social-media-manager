@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Save, Eye, EyeOff, CheckCircle, XCircle, Loader2, ExternalLink, ChevronDown, RefreshCw, Clock, AlertTriangle } from 'lucide-react';
 import { settingsApi, type Settings as SettingsType, type OpenAIModel, type TokenInfo } from '../../services/api';
+import { UserManagement } from './UserManagement';
 
 export function Settings() {
   const [_settings, setSettings] = useState<SettingsType | null>(null);
@@ -593,6 +594,11 @@ export function Settings() {
           {saving ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />}
           Einstellungen speichern
         </button>
+      </div>
+
+      {/* User Management Section */}
+      <div className="mt-6">
+        <UserManagement />
       </div>
 
       {/* Info Box */}

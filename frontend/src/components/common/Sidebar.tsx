@@ -4,6 +4,7 @@ import { MessageSquare, AtSign, Mail, LayoutDashboard, Settings, ChevronDown, Ch
 interface SidebarProps {
   activeView: string;
   onViewChange: (view: string) => void;
+  showSettings?: boolean;
 }
 
 const interactionTypes = [
@@ -18,7 +19,7 @@ const channels = [
   { id: 'tiktok', label: 'TikTok', icon: '🎵', active: false },
 ];
 
-export function Sidebar({ activeView, onViewChange }: SidebarProps) {
+export function Sidebar({ activeView, onViewChange, showSettings = true }: SidebarProps) {
   const [channelsExpanded, setChannelsExpanded] = useState(true);
 
   return (
@@ -124,19 +125,21 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
         </div>
       </nav>
 
-      <div className="p-4 border-t border-gray-800">
-        <button
-          onClick={() => onViewChange('settings')}
-          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-            activeView === 'settings'
-              ? 'bg-blue-600 text-white'
-              : 'text-gray-400 hover:text-white hover:bg-gray-800'
-          }`}
-        >
-          <Settings size={18} />
-          <span>Einstellungen</span>
-        </button>
-      </div>
+      {showSettings && (
+        <div className="p-4 border-t border-gray-800">
+          <button
+            onClick={() => onViewChange('settings')}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+              activeView === 'settings'
+                ? 'bg-blue-600 text-white'
+                : 'text-gray-400 hover:text-white hover:bg-gray-800'
+            }`}
+          >
+            <Settings size={18} />
+            <span>Einstellungen</span>
+          </button>
+        </div>
+      )}
     </aside>
   );
 }

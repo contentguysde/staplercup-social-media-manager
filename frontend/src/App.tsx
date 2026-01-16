@@ -1,5 +1,9 @@
 import { useState } from 'react';
-import { AlertTriangle, Settings as SettingsIcon, X } from 'lucide-react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { AlertTriangle, Settings as SettingsIcon, X, Loader2 } from 'lucide-react';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { LoginPage } from './components/Auth/LoginPage';
+import { VerifyEmailPage } from './components/Auth/VerifyEmailPage';
 import { Sidebar } from './components/common/Sidebar';
 import { Header } from './components/common/Header';
 import { Dashboard } from './components/Dashboard/Dashboard';
@@ -37,7 +41,8 @@ const platformFilters: Record<string, Platform | undefined> = {
   tiktok: 'tiktok',
 };
 
-function App() {
+function MainApp() {
+  const { user } = useAuth();
   const [activeView, setActiveView] = useState('dashboard');
   const [selectedInteraction, setSelectedInteraction] = useState<Interaction | null>(null);
   const [errorDismissed, setErrorDismissed] = useState(false);
@@ -46,6 +51,9 @@ function App() {
     autoRefresh: true,
     refreshInterval: 60000,
   });
+
+  // Only show settings for admin users
+  const canAccessSettings = user?.role === 'admin';
 
   // Reset error dismissed state when error changes
   const showError = error && !errorDismissed && activeView !== 'settings';
@@ -76,9 +84,21 @@ function App() {
 
   const isInboxView = ['all', 'comments', 'messages', 'mentions', 'instagram', 'facebook', 'tiktok'].includes(activeView);
 
+  // Handle view change - prevent non-admins from accessing settings
+  const handleViewChange = (view: string) => {
+    if (view === 'settings' && !canAccessSettings) {
+      return;
+    }
+    setActiveView(view);
+  };
+
   return (
     <div className="flex h-screen bg-gray-100">
-      <Sidebar activeView={activeView} onViewChange={setActiveView} />
+      <Sidebar
+        activeView={activeView}
+        onViewChange={handleViewChange}
+        showSettings={canAccessSettings}
+      />
 
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header
@@ -116,17 +136,19 @@ function App() {
                       Es werden Demo-Daten angezeigt.
                     </p>
                   )}
-                  <button
-                    onClick={() => setActiveView('settings')}
-                    className={`inline-flex items-center gap-1.5 mt-3 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                      connectionStatus?.errorType === 'token_expired'
-                        ? 'bg-amber-100 text-amber-800 hover:bg-amber-200'
-                        : 'bg-red-100 text-red-800 hover:bg-red-200'
-                    }`}
-                  >
-                    <SettingsIcon size={14} />
-                    Zu den Einstellungen
-                  </button>
+                  {canAccessSettings && (
+                    <button
+                      onClick={() => setActiveView('settings')}
+                      className={`inline-flex items-center gap-1.5 mt-3 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                        connectionStatus?.errorType === 'token_expired'
+                          ? 'bg-amber-100 text-amber-800 hover:bg-amber-200'
+                          : 'bg-red-100 text-red-800 hover:bg-red-200'
+                      }`}
+                    >
+                      <SettingsIcon size={14} />
+                      Zu den Einstellungen
+                    </button>
+                  )}
                 </div>
                 <button
                   onClick={() => setErrorDismissed(true)}
@@ -145,7 +167,7 @@ function App() {
             </div>
           )}
 
-          {activeView === 'settings' && (
+          {activeView === 'settings' && canAccessSettings && (
             <div className="h-full overflow-y-auto bg-gray-50">
               <Settings />
             </div>
@@ -184,6 +206,40 @@ function App() {
         </main>
       </div>
     </div>
+  );
+}
+
+function AppContent() {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div className="flex items-center gap-3 text-gray-500">
+          <Loader2 size={24} className="animate-spin" />
+          <span>Laden...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <LoginPage />;
+  }
+
+  return <MainApp />;
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <Routes>
+          <Route path="/verify-email" element={<VerifyEmailPage />} />
+          <Route path="/*" element={<AppContent />} />
+        </Routes>
+      </AuthProvider>
+    </BrowserRouter>
   );
 }
 
