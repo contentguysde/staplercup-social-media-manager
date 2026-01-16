@@ -65,6 +65,57 @@ const channelOptions: { value: Platform; label: string }[] = [
   { value: 'tiktok', label: 'TikTok' },
 ];
 
+// Helper to format date for section headers
+function formatDateHeader(date: Date): string {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const inputDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+  if (inputDate.getTime() === today.getTime()) {
+    return 'Heute';
+  }
+  if (inputDate.getTime() === yesterday.getTime()) {
+    return 'Gestern';
+  }
+
+  // Check if same week
+  const weekAgo = new Date(today);
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  if (inputDate > weekAgo) {
+    return date.toLocaleDateString('de-DE', { weekday: 'long' });
+  }
+
+  // Otherwise show full date
+  return date.toLocaleDateString('de-DE', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
+}
+
+// Get date key for grouping (YYYY-MM-DD)
+function getDateKey(timestamp: string): string {
+  const date = new Date(timestamp);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+// Group interactions by date
+function groupByDate(interactions: Interaction[]): Map<string, Interaction[]> {
+  const groups = new Map<string, Interaction[]>();
+
+  for (const interaction of interactions) {
+    const key = getDateKey(interaction.timestamp);
+    if (!groups.has(key)) {
+      groups.set(key, []);
+    }
+    groups.get(key)!.push(interaction);
+  }
+
+  return groups;
+}
+
 export function InboxList({
   interactions,
   selectedId,
@@ -250,149 +301,171 @@ export function InboxList({
         </button>
       </div>
       {showFilters && <FilterPanel />}
-      <div className="divide-y divide-gray-100 overflow-y-auto flex-1">
-      {filteredInteractions.map((interaction) => {
-        const Icon = typeIcons[interaction.type];
-        const isSelected = selectedId === interaction.id;
-        const isUnread = interaction.status === 'unread';
-        const formattedTime = new Date(interaction.timestamp).toLocaleString('de-DE', {
-          day: '2-digit',
-          month: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-        });
+      <div className="overflow-y-auto flex-1">
+      {(() => {
+        const groupedInteractions = groupByDate(filteredInteractions);
+        const sortedDateKeys = Array.from(groupedInteractions.keys()).sort((a, b) => b.localeCompare(a));
 
-        return (
-          <div
-            key={interaction.id}
-            className={`relative group transition-colors ${
-              isSelected ? 'bg-blue-50 border-l-4 border-blue-600' : ''
-            } ${isUnread ? 'bg-white' : 'bg-gray-50/50'}`}
-          >
-            <button
-              onClick={() => onSelect(interaction)}
-              className="w-full text-left p-4 hover:bg-gray-50/80 transition-colors"
-            >
-              <div className="flex items-start gap-3">
-                {/* Unread indicator bar */}
-                {isUnread && !isSelected && (
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500" />
-                )}
+        return sortedDateKeys.map((dateKey) => {
+          const dateInteractions = groupedInteractions.get(dateKey)!;
+          const sampleDate = new Date(dateInteractions[0].timestamp);
 
-                {interaction.context?.mediaUrl ? (
-                  <img
-                    src={interaction.context.mediaUrl}
-                    alt="Post"
-                    className="w-12 h-12 rounded-lg object-cover"
-                  />
-                ) : (
-                  <div className="w-12 h-12 rounded-lg bg-gray-200 flex items-center justify-center">
-                    <Image size={20} className="text-gray-400" />
-                  </div>
-                )}
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2">
-                      <span className={`font-medium ${isUnread ? 'text-gray-900' : 'text-gray-600'}`}>
-                        @{interaction.from.username}
-                      </span>
-                      <span className="flex items-center gap-1 text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                        <Icon size={12} />
-                        {typeLabels[interaction.type]}
-                      </span>
-                      {isUnread && (
-                        <span className="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">
-                          Neu
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-xs text-gray-400">{formattedTime}</span>
-                  </div>
-
-                  <p className={`text-sm truncate ${isUnread ? 'text-gray-800 font-medium' : 'text-gray-600'}`}>
-                    {interaction.content}
-                  </p>
-
-                  {interaction.labels && (
-                    <div className="mt-1.5">
-                      <InteractionLabels labels={interaction.labels} compact />
-                    </div>
-                  )}
-
-                  {interaction.replies && interaction.replies.length > 0 && (
-                    <p className="text-xs text-green-600 mt-1">
-                      ✓ {interaction.replies.length} Antwort(en)
-                    </p>
-                  )}
-                </div>
-
+          return (
+            <div key={dateKey}>
+              {/* Date Section Header */}
+              <div className="sticky top-0 z-10 px-4 py-2 bg-gray-100 border-y border-gray-200">
+                <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                  {formatDateHeader(sampleDate)}
+                </span>
               </div>
-            </button>
 
-            {/* Action buttons - visible on hover */}
-            <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-              {/* Mark as read/unread button */}
-              {isUnread ? (
-                onMarkAsRead && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onMarkAsRead(interaction.id);
-                    }}
-                    className="p-1.5 bg-white rounded-lg shadow-sm border border-gray-200 text-gray-500 hover:text-blue-600 hover:border-blue-300 transition-colors"
-                    title="Als gelesen markieren"
-                  >
-                    <MailOpen size={14} />
-                  </button>
-                )
-              ) : (
-                onMarkAsUnread && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onMarkAsUnread(interaction.id);
-                    }}
-                    className="p-1.5 bg-white rounded-lg shadow-sm border border-gray-200 text-gray-500 hover:text-blue-600 hover:border-blue-300 transition-colors"
-                    title="Als ungelesen markieren"
-                  >
-                    <MailIcon size={14} />
-                  </button>
-                )
-              )}
+              {/* Interactions for this date */}
+              <div className="divide-y divide-gray-100">
+                {dateInteractions.map((interaction) => {
+                  const Icon = typeIcons[interaction.type];
+                  const isSelected = selectedId === interaction.id;
+                  const isUnread = interaction.status === 'unread';
+                  const formattedTime = new Date(interaction.timestamp).toLocaleString('de-DE', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  });
 
-              {/* Archive/Unarchive button */}
-              {isArchiveView ? (
-                onUnarchive && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onUnarchive(interaction.id);
-                    }}
-                    className="p-1.5 bg-white rounded-lg shadow-sm border border-gray-200 text-gray-500 hover:text-green-600 hover:border-green-300 transition-colors"
-                    title="Aus Archiv wiederherstellen"
-                  >
-                    <ArchiveRestore size={14} />
-                  </button>
-                )
-              ) : (
-                onArchive && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onArchive(interaction.id);
-                    }}
-                    className="p-1.5 bg-white rounded-lg shadow-sm border border-gray-200 text-gray-500 hover:text-amber-600 hover:border-amber-300 transition-colors"
-                    title="Archivieren"
-                  >
-                    <Archive size={14} />
-                  </button>
-                )
-              )}
+                  return (
+                    <div
+                      key={interaction.id}
+                      className={`relative group transition-colors ${
+                        isSelected ? 'bg-blue-50 border-l-4 border-blue-600' : ''
+                      } ${isUnread ? 'bg-white' : 'bg-gray-50/50'}`}
+                    >
+                      <button
+                        onClick={() => onSelect(interaction)}
+                        className="w-full text-left p-4 hover:bg-gray-50/80 transition-colors"
+                      >
+                        <div className="flex items-start gap-3">
+                          {/* Unread indicator bar */}
+                          {isUnread && !isSelected && (
+                            <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500" />
+                          )}
+
+                          {interaction.context?.mediaUrl ? (
+                            <img
+                              src={interaction.context.mediaUrl}
+                              alt="Post"
+                              className="w-12 h-12 rounded-lg object-cover"
+                            />
+                          ) : (
+                            <div className="w-12 h-12 rounded-lg bg-gray-200 flex items-center justify-center">
+                              <Image size={20} className="text-gray-400" />
+                            </div>
+                          )}
+
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="flex items-center gap-2">
+                                <span className={`font-medium ${isUnread ? 'text-gray-900' : 'text-gray-600'}`}>
+                                  @{interaction.from.username}
+                                </span>
+                                <span className="flex items-center gap-1 text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                                  <Icon size={12} />
+                                  {typeLabels[interaction.type]}
+                                </span>
+                                {isUnread && (
+                                  <span className="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">
+                                    Neu
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-xs text-gray-400">{formattedTime}</span>
+                            </div>
+
+                            <p className={`text-sm truncate ${isUnread ? 'text-gray-800 font-medium' : 'text-gray-600'}`}>
+                              {interaction.content}
+                            </p>
+
+                            {interaction.labels && (
+                              <div className="mt-1.5">
+                                <InteractionLabels labels={interaction.labels} compact />
+                              </div>
+                            )}
+
+                            {interaction.replies && interaction.replies.length > 0 && (
+                              <p className="text-xs text-green-600 mt-1">
+                                ✓ {interaction.replies.length} Antwort(en)
+                              </p>
+                            )}
+                          </div>
+
+                        </div>
+                      </button>
+
+                      {/* Action buttons - visible on hover */}
+                      <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                        {/* Mark as read/unread button */}
+                        {isUnread ? (
+                          onMarkAsRead && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onMarkAsRead(interaction.id);
+                              }}
+                              className="p-1.5 bg-white rounded-lg shadow-sm border border-gray-200 text-gray-500 hover:text-blue-600 hover:border-blue-300 transition-colors"
+                              title="Als gelesen markieren"
+                            >
+                              <MailOpen size={14} />
+                            </button>
+                          )
+                        ) : (
+                          onMarkAsUnread && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onMarkAsUnread(interaction.id);
+                              }}
+                              className="p-1.5 bg-white rounded-lg shadow-sm border border-gray-200 text-gray-500 hover:text-blue-600 hover:border-blue-300 transition-colors"
+                              title="Als ungelesen markieren"
+                            >
+                              <MailIcon size={14} />
+                            </button>
+                          )
+                        )}
+
+                        {/* Archive/Unarchive button */}
+                        {isArchiveView ? (
+                          onUnarchive && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onUnarchive(interaction.id);
+                              }}
+                              className="p-1.5 bg-white rounded-lg shadow-sm border border-gray-200 text-gray-500 hover:text-green-600 hover:border-green-300 transition-colors"
+                              title="Aus Archiv wiederherstellen"
+                            >
+                              <ArchiveRestore size={14} />
+                            </button>
+                          )
+                        ) : (
+                          onArchive && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onArchive(interaction.id);
+                              }}
+                              className="p-1.5 bg-white rounded-lg shadow-sm border border-gray-200 text-gray-500 hover:text-amber-600 hover:border-amber-300 transition-colors"
+                              title="Archivieren"
+                            >
+                              <Archive size={14} />
+                            </button>
+                          )
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        });
+      })()}
       </div>
     </div>
   );
