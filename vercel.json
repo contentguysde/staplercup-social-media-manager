@@ -18,6 +18,10 @@
       "destination": "/api/instagram?action=:path*"
     },
     {
+      "source": "/api/settings/:path*",
+      "destination": "/api/settings?action=:path*"
+    },
+    {
       "source": "/api/:path*",
       "destination": "/api/:path*"
     }

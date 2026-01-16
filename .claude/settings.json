@@ -9,9 +9,14 @@
       "Grep(*)",
       "WebFetch(*)",
       "WebSearch(*)",
-      "mcp__playwright__*"
+      "Task(*)",
+      "mcp__*",
+      "NotebookEdit(*)",
+      "TodoWrite(*)",
+      "AskUserQuestion(*)"
     ],
     "deny": []
   },
-  "bypassPermissions": true
+  "bypassPermissions": true,
+  "enableAllProjectMcpServers": true
 }
