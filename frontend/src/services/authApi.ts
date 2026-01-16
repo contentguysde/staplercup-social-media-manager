@@ -100,24 +100,24 @@ export const authApi = {
 
   // Admin: Get all users
   getUsers: async (): Promise<UserPublic[]> => {
-    const response = await api.get<{ users: UserPublic[] }>('/auth/users');
+    const response = await api.get<{ users: UserPublic[] }>('/users');
     return response.data.users;
   },
 
   // Admin: Delete user
   deleteUser: async (userId: number): Promise<void> => {
-    await api.delete(`/auth/users/${userId}`);
+    await api.delete(`/users/${userId}`);
   },
 
   // Admin: Update user role
   updateUserRole: async (userId: number, role: Role): Promise<UserPublic> => {
-    const response = await api.put<{ user: UserPublic }>(`/auth/users/${userId}/role`, { role });
+    const response = await api.put<{ user: UserPublic }>(`/users/${userId}/role`, { role });
     return response.data.user;
   },
 
   // Admin: Update user name
   updateUserName: async (userId: number, name: string): Promise<UserPublic> => {
-    const response = await api.put<{ user: UserPublic }>(`/auth/users/${userId}/name`, { name });
+    const response = await api.put<{ user: UserPublic }>(`/users/${userId}/name`, { name });
     return response.data.user;
   },
 
