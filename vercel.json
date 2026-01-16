@@ -6,6 +6,18 @@
   "framework": null,
   "rewrites": [
     {
+      "source": "/api/auth/:path*",
+      "destination": "/api/auth"
+    },
+    {
+      "source": "/api/users/:path*",
+      "destination": "/api/users"
+    },
+    {
+      "source": "/api/instagram/:path*",
+      "destination": "/api/instagram"
+    },
+    {
       "source": "/api/:path*",
       "destination": "/api/:path*"
     }
