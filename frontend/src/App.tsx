@@ -19,6 +19,7 @@ const viewTitles: Record<string, string> = {
   comments: 'Kommentare',
   messages: 'Nachrichten',
   mentions: 'Erwähnungen',
+  archive: 'Archiv',
   settings: 'Einstellungen',
   // Channel views
   instagram: 'Instagram',
@@ -47,7 +48,20 @@ function MainApp() {
   const [selectedInteraction, setSelectedInteraction] = useState<Interaction | null>(null);
   const [errorDismissed, setErrorDismissed] = useState(false);
 
-  const { interactions, loading, error, connectionStatus, refresh, replyToComment, sendMessage } = useInstagram({
+  const {
+    interactions,
+    archivedInteractions,
+    loading,
+    error,
+    connectionStatus,
+    refresh,
+    replyToComment,
+    sendMessage,
+    markAsRead,
+    markAsUnread,
+    archiveInteraction,
+    unarchiveInteraction,
+  } = useInstagram({
     autoRefresh: true,
     refreshInterval: 60000,
   });
@@ -83,6 +97,59 @@ function MainApp() {
   })();
 
   const isInboxView = ['all', 'comments', 'messages', 'mentions', 'instagram', 'facebook', 'tiktok'].includes(activeView);
+  const isArchiveView = activeView === 'archive';
+
+  // Handle interaction selection and mark as read
+  const handleSelectInteraction = async (interaction: Interaction) => {
+    setSelectedInteraction(interaction);
+    if (interaction.status === 'unread') {
+      try {
+        await markAsRead(interaction.id);
+      } catch (err) {
+        console.error('Failed to mark as read:', err);
+      }
+    }
+  };
+
+  // Handle archive/unarchive
+  const handleArchive = async (interactionId: string) => {
+    try {
+      await archiveInteraction(interactionId);
+      if (selectedInteraction?.id === interactionId) {
+        setSelectedInteraction(null);
+      }
+    } catch (err) {
+      console.error('Failed to archive:', err);
+    }
+  };
+
+  const handleUnarchive = async (interactionId: string) => {
+    try {
+      await unarchiveInteraction(interactionId);
+      if (selectedInteraction?.id === interactionId) {
+        setSelectedInteraction(null);
+      }
+    } catch (err) {
+      console.error('Failed to unarchive:', err);
+    }
+  };
+
+  // Handle mark as read/unread
+  const handleMarkAsRead = async (interactionId: string) => {
+    try {
+      await markAsRead(interactionId);
+    } catch (err) {
+      console.error('Failed to mark as read:', err);
+    }
+  };
+
+  const handleMarkAsUnread = async (interactionId: string) => {
+    try {
+      await markAsUnread(interactionId);
+    } catch (err) {
+      console.error('Failed to mark as unread:', err);
+    }
+  };
 
   // Handle view change - prevent non-admins from accessing settings
   const handleViewChange = (view: string) => {
@@ -107,10 +174,10 @@ function MainApp() {
           loading={loading}
         />
 
-        <main className="flex-1 overflow-hidden">
+        <main className="flex-1 overflow-hidden flex flex-col">
           {/* Error Banner */}
           {showError && (
-            <div className={`border-b px-6 py-4 ${
+            <div className={`border-b px-6 py-4 flex-shrink-0 ${
               connectionStatus?.errorType === 'token_expired'
                 ? 'bg-amber-50 border-amber-200'
                 : 'bg-red-50 border-red-200'
@@ -162,31 +229,34 @@ function MainApp() {
           )}
 
           {activeView === 'dashboard' && (
-            <div className="h-full overflow-y-auto">
+            <div className="flex-1 overflow-y-auto">
               <Dashboard interactions={interactions} />
             </div>
           )}
 
           {activeView === 'settings' && canAccessSettings && (
-            <div className="h-full overflow-y-auto bg-gray-50">
+            <div className="flex-1 overflow-y-auto bg-gray-50">
               <Settings />
             </div>
           )}
 
           {isInboxView && (
-            <div className="flex h-full">
+            <div className="flex flex-1 min-h-0">
               {/* Inbox List */}
               <div className="w-96 border-r border-gray-200 bg-white overflow-y-auto">
                 <InboxList
                   interactions={filteredInteractions}
                   selectedId={selectedInteraction?.id || null}
-                  onSelect={setSelectedInteraction}
+                  onSelect={handleSelectInteraction}
                   filter={typeFilters[activeView]}
+                  onArchive={handleArchive}
+                  onMarkAsRead={handleMarkAsRead}
+                  onMarkAsUnread={handleMarkAsUnread}
                 />
               </div>
 
               {/* Conversation View */}
-              <div className="flex-1 bg-white">
+              <div className="flex-1 bg-white overflow-hidden">
                 {selectedInteraction ? (
                   <ConversationView
                     interaction={selectedInteraction}
@@ -196,6 +266,40 @@ function MainApp() {
                   <div className="h-full flex items-center justify-center text-gray-400">
                     <div className="text-center">
                       <p className="text-lg mb-2">Wähle eine Konversation</p>
+                      <p className="text-sm">Klicke auf eine Interaktion links, um sie anzuzeigen</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {isArchiveView && (
+            <div className="flex flex-1 min-h-0">
+              {/* Archive List */}
+              <div className="w-96 border-r border-gray-200 bg-white overflow-y-auto">
+                <InboxList
+                  interactions={archivedInteractions}
+                  selectedId={selectedInteraction?.id || null}
+                  onSelect={handleSelectInteraction}
+                  isArchiveView={true}
+                  onUnarchive={handleUnarchive}
+                  onMarkAsRead={handleMarkAsRead}
+                  onMarkAsUnread={handleMarkAsUnread}
+                />
+              </div>
+
+              {/* Conversation View */}
+              <div className="flex-1 bg-white overflow-hidden">
+                {selectedInteraction ? (
+                  <ConversationView
+                    interaction={selectedInteraction}
+                    onSendReply={handleSendReply}
+                  />
+                ) : (
+                  <div className="h-full flex items-center justify-center text-gray-400">
+                    <div className="text-center">
+                      <p className="text-lg mb-2">Archivierte Interaktionen</p>
                       <p className="text-sm">Klicke auf eine Interaktion links, um sie anzuzeigen</p>
                     </div>
                   </div>

@@ -39,6 +39,32 @@ export async function initDatabase() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `;
+
+  // Interaction metadata for read/archive status
+  await sql`
+    CREATE TABLE IF NOT EXISTS interaction_metadata (
+      id SERIAL PRIMARY KEY,
+      interaction_id VARCHAR(255) UNIQUE NOT NULL,
+      is_read INTEGER DEFAULT 0,
+      is_archived INTEGER DEFAULT 0,
+      read_at TIMESTAMP,
+      archived_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `;
+}
+
+// Interaction metadata types
+export interface InteractionMetadata {
+  id: number;
+  interaction_id: string;
+  is_read: number;
+  is_archived: number;
+  read_at: string | null;
+  archived_at: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 // User operations
@@ -163,4 +189,102 @@ export async function deleteVerificationToken(token: string) {
 
 export async function cleanupExpiredVerificationTokens() {
   await sql`DELETE FROM email_verification_tokens WHERE expires_at < CURRENT_TIMESTAMP`;
+}
+
+// Interaction metadata operations
+export async function getInteractionMetadata(interactionId: string): Promise<InteractionMetadata | null> {
+  const result = await sql`SELECT * FROM interaction_metadata WHERE interaction_id = ${interactionId}`;
+  return (result.rows[0] as InteractionMetadata) || null;
+}
+
+export async function getAllInteractionMetadata(): Promise<InteractionMetadata[]> {
+  const result = await sql`SELECT * FROM interaction_metadata`;
+  return result.rows as InteractionMetadata[];
+}
+
+export async function getArchivedInteractionIds(): Promise<string[]> {
+  const result = await sql`SELECT interaction_id FROM interaction_metadata WHERE is_archived = 1`;
+  return result.rows.map((row) => (row as { interaction_id: string }).interaction_id);
+}
+
+export async function getReadInteractionIds(): Promise<string[]> {
+  const result = await sql`SELECT interaction_id FROM interaction_metadata WHERE is_read = 1`;
+  return result.rows.map((row) => (row as { interaction_id: string }).interaction_id);
+}
+
+export async function markInteractionAsRead(interactionId: string): Promise<InteractionMetadata> {
+  // Upsert: insert if not exists, update if exists
+  const existing = await getInteractionMetadata(interactionId);
+
+  if (existing) {
+    await sql`
+      UPDATE interaction_metadata
+      SET is_read = 1, read_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+      WHERE interaction_id = ${interactionId}
+    `;
+  } else {
+    await sql`
+      INSERT INTO interaction_metadata (interaction_id, is_read, read_at)
+      VALUES (${interactionId}, 1, CURRENT_TIMESTAMP)
+    `;
+  }
+
+  return (await getInteractionMetadata(interactionId))!;
+}
+
+export async function markInteractionAsUnread(interactionId: string): Promise<InteractionMetadata> {
+  const existing = await getInteractionMetadata(interactionId);
+
+  if (existing) {
+    await sql`
+      UPDATE interaction_metadata
+      SET is_read = 0, read_at = NULL, updated_at = CURRENT_TIMESTAMP
+      WHERE interaction_id = ${interactionId}
+    `;
+  } else {
+    await sql`
+      INSERT INTO interaction_metadata (interaction_id, is_read)
+      VALUES (${interactionId}, 0)
+    `;
+  }
+
+  return (await getInteractionMetadata(interactionId))!;
+}
+
+export async function archiveInteraction(interactionId: string): Promise<InteractionMetadata> {
+  const existing = await getInteractionMetadata(interactionId);
+
+  if (existing) {
+    await sql`
+      UPDATE interaction_metadata
+      SET is_archived = 1, archived_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+      WHERE interaction_id = ${interactionId}
+    `;
+  } else {
+    await sql`
+      INSERT INTO interaction_metadata (interaction_id, is_archived, archived_at)
+      VALUES (${interactionId}, 1, CURRENT_TIMESTAMP)
+    `;
+  }
+
+  return (await getInteractionMetadata(interactionId))!;
+}
+
+export async function unarchiveInteraction(interactionId: string): Promise<InteractionMetadata> {
+  const existing = await getInteractionMetadata(interactionId);
+
+  if (existing) {
+    await sql`
+      UPDATE interaction_metadata
+      SET is_archived = 0, archived_at = NULL, updated_at = CURRENT_TIMESTAMP
+      WHERE interaction_id = ${interactionId}
+    `;
+  } else {
+    await sql`
+      INSERT INTO interaction_metadata (interaction_id, is_archived)
+      VALUES (${interactionId}, 0)
+    `;
+  }
+
+  return (await getInteractionMetadata(interactionId))!;
 }

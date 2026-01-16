@@ -1,6 +1,6 @@
 import axios from 'axios';
 import type { AxiosError, InternalAxiosRequestConfig } from 'axios';
-import type { Interaction, SuggestionRequest, SuggestionResponse, APIResponse, InteractionLabels } from '../types';
+import type { Interaction, SuggestionRequest, SuggestionResponse, APIResponse, InteractionLabels, InteractionMetadata } from '../types';
 
 // In production (Vercel), API is at same origin. In development, use localhost:3001
 const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001');
@@ -312,6 +312,73 @@ export const settingsApi = {
       throw new Error(response.data.error || 'Failed to refresh token');
     }
     return { data: response.data.data!, message: response.data.message || '' };
+  },
+};
+
+// Interactions Metadata API
+export const interactionsApi = {
+  getMetadata: async (): Promise<InteractionMetadata[]> => {
+    const response = await api.get<APIResponse<InteractionMetadata[]>>('/interactions/metadata');
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to fetch metadata');
+    }
+    return response.data.data || [];
+  },
+
+  getArchivedIds: async (): Promise<string[]> => {
+    const response = await api.get<APIResponse<string[]>>('/interactions/archived');
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to fetch archived IDs');
+    }
+    return response.data.data || [];
+  },
+
+  getReadIds: async (): Promise<string[]> => {
+    const response = await api.get<APIResponse<string[]>>('/interactions/read');
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to fetch read IDs');
+    }
+    return response.data.data || [];
+  },
+
+  markAsRead: async (interactionId: string): Promise<InteractionMetadata> => {
+    const response = await api.post<APIResponse<InteractionMetadata>>('/interactions/mark-read', {
+      interactionId,
+    });
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to mark as read');
+    }
+    return response.data.data!;
+  },
+
+  markAsUnread: async (interactionId: string): Promise<InteractionMetadata> => {
+    const response = await api.post<APIResponse<InteractionMetadata>>('/interactions/mark-unread', {
+      interactionId,
+    });
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to mark as unread');
+    }
+    return response.data.data!;
+  },
+
+  archive: async (interactionId: string): Promise<InteractionMetadata> => {
+    const response = await api.post<APIResponse<InteractionMetadata>>('/interactions/archive', {
+      interactionId,
+    });
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to archive');
+    }
+    return response.data.data!;
+  },
+
+  unarchive: async (interactionId: string): Promise<InteractionMetadata> => {
+    const response = await api.post<APIResponse<InteractionMetadata>>('/interactions/unarchive', {
+      interactionId,
+    });
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to unarchive');
+    }
+    return response.data.data!;
   },
 };
 

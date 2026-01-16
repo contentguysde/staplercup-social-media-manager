@@ -1,4 +1,4 @@
-import { MessageSquare, Mail, AtSign, Image, Filter, X } from 'lucide-react';
+import { MessageSquare, Mail, AtSign, Image, Filter, X, Archive, ArchiveRestore, MailOpen, Mail as MailIcon } from 'lucide-react';
 import { useState } from 'react';
 import type { Interaction, InteractionType, Urgency, Language, Topic, Platform } from '../../types';
 import { InteractionLabels } from './InteractionLabels';
@@ -15,6 +15,11 @@ interface InboxListProps {
   selectedId: string | null;
   onSelect: (interaction: Interaction) => void;
   filter?: InteractionType;
+  isArchiveView?: boolean;
+  onArchive?: (interactionId: string) => void;
+  onUnarchive?: (interactionId: string) => void;
+  onMarkAsRead?: (interactionId: string) => void;
+  onMarkAsUnread?: (interactionId: string) => void;
 }
 
 const typeIcons = {
@@ -60,7 +65,17 @@ const channelOptions: { value: Platform; label: string }[] = [
   { value: 'tiktok', label: 'TikTok' },
 ];
 
-export function InboxList({ interactions, selectedId, onSelect, filter }: InboxListProps) {
+export function InboxList({
+  interactions,
+  selectedId,
+  onSelect,
+  filter,
+  isArchiveView = false,
+  onArchive,
+  onUnarchive,
+  onMarkAsRead,
+  onMarkAsUnread,
+}: InboxListProps) {
   const [showFilters, setShowFilters] = useState(false);
   const [labelFilters, setLabelFilters] = useState<FilterState>({
     urgency: null,
@@ -239,6 +254,7 @@ export function InboxList({ interactions, selectedId, onSelect, filter }: InboxL
       {filteredInteractions.map((interaction) => {
         const Icon = typeIcons[interaction.type];
         const isSelected = selectedId === interaction.id;
+        const isUnread = interaction.status === 'unread';
         const formattedTime = new Date(interaction.timestamp).toLocaleString('de-DE', {
           day: '2-digit',
           month: '2-digit',
@@ -247,60 +263,134 @@ export function InboxList({ interactions, selectedId, onSelect, filter }: InboxL
         });
 
         return (
-          <button
+          <div
             key={interaction.id}
-            onClick={() => onSelect(interaction)}
-            className={`w-full text-left p-4 hover:bg-gray-50 transition-colors ${
+            className={`relative group transition-colors ${
               isSelected ? 'bg-blue-50 border-l-4 border-blue-600' : ''
-            } ${interaction.status === 'unread' ? 'bg-white' : 'bg-gray-50'}`}
+            } ${isUnread ? 'bg-white' : 'bg-gray-50/50'}`}
           >
-            <div className="flex items-start gap-3">
-              {interaction.context?.mediaUrl ? (
-                <img
-                  src={interaction.context.mediaUrl}
-                  alt="Post"
-                  className="w-12 h-12 rounded-lg object-cover"
-                />
-              ) : (
-                <div className="w-12 h-12 rounded-lg bg-gray-200 flex items-center justify-center">
-                  <Image size={20} className="text-gray-400" />
+            <button
+              onClick={() => onSelect(interaction)}
+              className="w-full text-left p-4 hover:bg-gray-50/80 transition-colors"
+            >
+              <div className="flex items-start gap-3">
+                {/* Unread indicator bar */}
+                {isUnread && !isSelected && (
+                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500" />
+                )}
+
+                {interaction.context?.mediaUrl ? (
+                  <img
+                    src={interaction.context.mediaUrl}
+                    alt="Post"
+                    className="w-12 h-12 rounded-lg object-cover"
+                  />
+                ) : (
+                  <div className="w-12 h-12 rounded-lg bg-gray-200 flex items-center justify-center">
+                    <Image size={20} className="text-gray-400" />
+                  </div>
+                )}
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-2">
+                      <span className={`font-medium ${isUnread ? 'text-gray-900' : 'text-gray-600'}`}>
+                        @{interaction.from.username}
+                      </span>
+                      <span className="flex items-center gap-1 text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                        <Icon size={12} />
+                        {typeLabels[interaction.type]}
+                      </span>
+                      {isUnread && (
+                        <span className="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">
+                          Neu
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-xs text-gray-400">{formattedTime}</span>
+                  </div>
+
+                  <p className={`text-sm truncate ${isUnread ? 'text-gray-800 font-medium' : 'text-gray-600'}`}>
+                    {interaction.content}
+                  </p>
+
+                  {interaction.labels && (
+                    <div className="mt-1.5">
+                      <InteractionLabels labels={interaction.labels} compact />
+                    </div>
+                  )}
+
+                  {interaction.replies && interaction.replies.length > 0 && (
+                    <p className="text-xs text-green-600 mt-1">
+                      ✓ {interaction.replies.length} Antwort(en)
+                    </p>
+                  )}
                 </div>
+
+              </div>
+            </button>
+
+            {/* Action buttons - visible on hover */}
+            <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+              {/* Mark as read/unread button */}
+              {isUnread ? (
+                onMarkAsRead && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onMarkAsRead(interaction.id);
+                    }}
+                    className="p-1.5 bg-white rounded-lg shadow-sm border border-gray-200 text-gray-500 hover:text-blue-600 hover:border-blue-300 transition-colors"
+                    title="Als gelesen markieren"
+                  >
+                    <MailOpen size={14} />
+                  </button>
+                )
+              ) : (
+                onMarkAsUnread && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onMarkAsUnread(interaction.id);
+                    }}
+                    className="p-1.5 bg-white rounded-lg shadow-sm border border-gray-200 text-gray-500 hover:text-blue-600 hover:border-blue-300 transition-colors"
+                    title="Als ungelesen markieren"
+                  >
+                    <MailIcon size={14} />
+                  </button>
+                )
               )}
 
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-gray-900">
-                      @{interaction.from.username}
-                    </span>
-                    <span className="flex items-center gap-1 text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                      <Icon size={12} />
-                      {typeLabels[interaction.type]}
-                    </span>
-                  </div>
-                  <span className="text-xs text-gray-400">{formattedTime}</span>
-                </div>
-
-                <p className="text-sm text-gray-600 truncate">{interaction.content}</p>
-
-                {interaction.labels && (
-                  <div className="mt-1.5">
-                    <InteractionLabels labels={interaction.labels} compact />
-                  </div>
-                )}
-
-                {interaction.replies && interaction.replies.length > 0 && (
-                  <p className="text-xs text-green-600 mt-1">
-                    ✓ {interaction.replies.length} Antwort(en)
-                  </p>
-                )}
-              </div>
-
-              {interaction.status === 'unread' && (
-                <span className="w-2 h-2 bg-blue-600 rounded-full flex-shrink-0 mt-2"></span>
+              {/* Archive/Unarchive button */}
+              {isArchiveView ? (
+                onUnarchive && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onUnarchive(interaction.id);
+                    }}
+                    className="p-1.5 bg-white rounded-lg shadow-sm border border-gray-200 text-gray-500 hover:text-green-600 hover:border-green-300 transition-colors"
+                    title="Aus Archiv wiederherstellen"
+                  >
+                    <ArchiveRestore size={14} />
+                  </button>
+                )
+              ) : (
+                onArchive && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onArchive(interaction.id);
+                    }}
+                    className="p-1.5 bg-white rounded-lg shadow-sm border border-gray-200 text-gray-500 hover:text-amber-600 hover:border-amber-300 transition-colors"
+                    title="Archivieren"
+                  >
+                    <Archive size={14} />
+                  </button>
+                )
               )}
             </div>
-          </button>
+          </div>
         );
       })}
       </div>

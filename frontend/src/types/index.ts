@@ -82,3 +82,15 @@ export interface APIResponse<T> {
   error?: string;
   message?: string;
 }
+
+// Interaction metadata for read/archive status
+export interface InteractionMetadata {
+  id: number;
+  interaction_id: string;
+  is_read: number;
+  is_archived: number;
+  read_at: string | null;
+  archived_at: string | null;
+  created_at: string;
+  updated_at: string;
+}

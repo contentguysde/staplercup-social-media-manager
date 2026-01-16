@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MessageSquare, AtSign, Mail, LayoutDashboard, Settings, ChevronDown, ChevronRight } from 'lucide-react';
+import { MessageSquare, AtSign, Mail, LayoutDashboard, Settings, ChevronDown, ChevronRight, Archive } from 'lucide-react';
 
 interface SidebarProps {
   activeView: string;
@@ -122,6 +122,21 @@ export function Sidebar({ activeView, onViewChange, showSettings = true }: Sideb
               </li>
             ))}
           </ul>
+        </div>
+
+        {/* Archive */}
+        <div className="mb-4">
+          <button
+            onClick={() => onViewChange('archive')}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+              activeView === 'archive'
+                ? 'bg-blue-600 text-white'
+                : 'text-gray-300 hover:bg-gray-800'
+            }`}
+          >
+            <Archive size={18} />
+            <span>Archiv</span>
+          </button>
         </div>
       </nav>
 

@@ -22,6 +22,10 @@
       "destination": "/api/settings?action=:path*"
     },
     {
+      "source": "/api/interactions/:path*",
+      "destination": "/api/interactions?action=:path*"
+    },
+    {
       "source": "/api/:path*",
       "destination": "/api/:path*"
     }
