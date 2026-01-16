@@ -28,6 +28,11 @@ import { sendVerificationEmail } from './_lib/email';
 import { serialize } from 'cookie';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Handle OPTIONS preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   // Extract the action from query parameter (set by Vercel rewrite)
   const action = (req.query.action as string) || '';
 

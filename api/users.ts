@@ -15,6 +15,11 @@ import {
 } from './_lib/auth';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Handle OPTIONS preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   try {
     // Verify admin authentication for all user management operations
     const token = getTokenFromHeader(req.headers.authorization as string);
