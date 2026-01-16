@@ -1,4 +1,7 @@
 import { sql } from '@vercel/postgres';
+import type { User, RefreshToken, VerificationToken } from './types';
+
+export type { User, RefreshToken, VerificationToken };
 
 // Initialize database schema
 export async function initDatabase() {
@@ -39,14 +42,14 @@ export async function initDatabase() {
 }
 
 // User operations
-export async function findUserByEmail(email: string) {
+export async function findUserByEmail(email: string): Promise<User | null> {
   const result = await sql`SELECT * FROM users WHERE email = ${email}`;
-  return result.rows[0] || null;
+  return (result.rows[0] as User) || null;
 }
 
-export async function findUserById(id: number) {
+export async function findUserById(id: number): Promise<User | null> {
   const result = await sql`SELECT * FROM users WHERE id = ${id}`;
-  return result.rows[0] || null;
+  return (result.rows[0] as User) || null;
 }
 
 export async function createUser(params: {
@@ -55,13 +58,13 @@ export async function createUser(params: {
   name: string;
   role: string;
   emailVerified?: number;
-}) {
+}): Promise<User> {
   const result = await sql`
     INSERT INTO users (email, password_hash, name, role, email_verified)
     VALUES (${params.email}, ${params.passwordHash}, ${params.name}, ${params.role}, ${params.emailVerified || 0})
     RETURNING *
   `;
-  return result.rows[0];
+  return result.rows[0] as User;
 }
 
 export async function getAllUsers() {
@@ -115,9 +118,9 @@ export async function saveRefreshToken(params: {
   `;
 }
 
-export async function findRefreshToken(token: string) {
+export async function findRefreshToken(token: string): Promise<RefreshToken | null> {
   const result = await sql`SELECT * FROM refresh_tokens WHERE token = ${token}`;
-  return result.rows[0] || null;
+  return (result.rows[0] as RefreshToken) || null;
 }
 
 export async function deleteRefreshToken(token: string) {
@@ -148,9 +151,9 @@ export async function createVerificationToken(params: {
   `;
 }
 
-export async function findVerificationToken(token: string) {
+export async function findVerificationToken(token: string): Promise<VerificationToken | null> {
   const result = await sql`SELECT * FROM email_verification_tokens WHERE token = ${token}`;
-  return result.rows[0] || null;
+  return (result.rows[0] as VerificationToken) || null;
 }
 
 export async function deleteVerificationToken(token: string) {

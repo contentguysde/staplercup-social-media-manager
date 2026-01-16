@@ -1,37 +1,11 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import type { Role, TokenPayload, User, UserPublic } from './types';
+
+export type { Role, TokenPayload, User, UserPublic };
 
 const SALT_ROUNDS = 12;
-
-export type Role = 'admin' | 'manager' | 'viewer';
-
-export interface TokenPayload {
-  userId: number;
-  email: string;
-  role: Role;
-}
-
-export interface User {
-  id: number;
-  email: string;
-  password_hash: string;
-  name: string;
-  role: Role;
-  email_verified: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface UserPublic {
-  id: number;
-  email: string;
-  name: string;
-  role: Role;
-  email_verified: number;
-  created_at: string;
-  updated_at: string;
-}
 
 // Helper to convert User to UserPublic (removes password_hash)
 export function toPublicUser(user: User): UserPublic {
