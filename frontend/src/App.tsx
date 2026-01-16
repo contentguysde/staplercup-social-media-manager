@@ -177,6 +177,12 @@ function MainApp() {
     }
   };
 
+  // Get assignment for selected interaction
+  const getSelectedAssignment = () => {
+    if (!selectedInteraction) return undefined;
+    return allAssignments.find((a) => a.interaction_id === selectedInteraction.id);
+  };
+
   // Handle view change - prevent non-admins from accessing settings
   const handleViewChange = (view: string) => {
     if (view === 'settings' && !canAccessSettings) {
@@ -278,11 +284,6 @@ function MainApp() {
                   onArchive={handleArchive}
                   onMarkAsRead={handleMarkAsRead}
                   onMarkAsUnread={handleMarkAsUnread}
-                  assignableUsers={assignableUsers}
-                  allAssignments={allAssignments}
-                  onAssign={handleAssign}
-                  onUnassign={handleUnassign}
-                  canAssign={canAssign}
                 />
               </div>
 
@@ -292,6 +293,11 @@ function MainApp() {
                   <ConversationView
                     interaction={selectedInteraction}
                     onSendReply={handleSendReply}
+                    assignableUsers={assignableUsers}
+                    assignment={getSelectedAssignment()}
+                    onAssign={handleAssign}
+                    onUnassign={handleUnassign}
+                    canAssign={canAssign}
                   />
                 ) : (
                   <div className="h-full flex items-center justify-center text-gray-400">
@@ -317,11 +323,6 @@ function MainApp() {
                   onUnarchive={handleUnarchive}
                   onMarkAsRead={handleMarkAsRead}
                   onMarkAsUnread={handleMarkAsUnread}
-                  assignableUsers={assignableUsers}
-                  allAssignments={allAssignments}
-                  onAssign={handleAssign}
-                  onUnassign={handleUnassign}
-                  canAssign={canAssign}
                 />
               </div>
 
@@ -331,6 +332,11 @@ function MainApp() {
                   <ConversationView
                     interaction={selectedInteraction}
                     onSendReply={handleSendReply}
+                    assignableUsers={assignableUsers}
+                    assignment={getSelectedAssignment()}
+                    onAssign={handleAssign}
+                    onUnassign={handleUnassign}
+                    canAssign={canAssign}
                   />
                 ) : (
                   <div className="h-full flex items-center justify-center text-gray-400">
@@ -355,11 +361,6 @@ function MainApp() {
                   onArchive={handleArchive}
                   onMarkAsRead={handleMarkAsRead}
                   onMarkAsUnread={handleMarkAsUnread}
-                  assignableUsers={assignableUsers}
-                  allAssignments={allAssignments}
-                  onAssign={handleAssign}
-                  onUnassign={handleUnassign}
-                  canAssign={canAssign}
                 />
               </div>
 
@@ -369,6 +370,11 @@ function MainApp() {
                   <ConversationView
                     interaction={selectedInteraction}
                     onSendReply={handleSendReply}
+                    assignableUsers={assignableUsers}
+                    assignment={getSelectedAssignment()}
+                    onAssign={handleAssign}
+                    onUnassign={handleUnassign}
+                    canAssign={canAssign}
                   />
                 ) : (
                   <div className="h-full flex items-center justify-center text-gray-400">

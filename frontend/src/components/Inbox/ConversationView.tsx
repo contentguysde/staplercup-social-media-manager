@@ -1,11 +1,17 @@
-import { useState } from 'react';
-import { Send, ExternalLink, Heart, User } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Send, ExternalLink, Heart, User, UserPlus, UserMinus, ChevronDown } from 'lucide-react';
 import { SuggestionPanel } from '../AIAssistant/SuggestionPanel';
-import type { Interaction } from '../../types';
+import type { Interaction, AssignmentInfo, AssignableUser } from '../../types';
 
 interface ConversationViewProps {
   interaction: Interaction;
   onSendReply: (message: string) => Promise<void>;
+  // Assignment props
+  assignableUsers?: AssignableUser[];
+  assignment?: AssignmentInfo;
+  onAssign?: (interactionId: string, userId: number) => void;
+  onUnassign?: (interactionId: string) => void;
+  canAssign?: boolean;
 }
 
 // Helper to format caption with hashtags and mentions
@@ -39,9 +45,30 @@ function formatCaption(caption: string) {
   });
 }
 
-export function ConversationView({ interaction, onSendReply }: ConversationViewProps) {
+export function ConversationView({
+  interaction,
+  onSendReply,
+  assignableUsers = [],
+  assignment,
+  onAssign,
+  onUnassign,
+  canAssign = false,
+}: ConversationViewProps) {
   const [replyText, setReplyText] = useState('');
   const [sending, setSending] = useState(false);
+  const [showAssignDropdown, setShowAssignDropdown] = useState(false);
+  const assignDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (assignDropdownRef.current && !assignDropdownRef.current.contains(event.target as Node)) {
+        setShowAssignDropdown(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleSend = async () => {
     if (!replyText.trim() || sending) return;
@@ -93,14 +120,72 @@ export function ConversationView({ interaction, onSendReply }: ConversationViewP
               </div>
             </a>
             <div>
-              <a
-                href={userProfileUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-semibold text-gray-900 hover:text-blue-600 transition-colors"
-              >
-                @{interaction.from.username}
-              </a>
+              <div className="flex items-center gap-2">
+                <a
+                  href={userProfileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-semibold text-gray-900 hover:text-blue-600 transition-colors"
+                >
+                  @{interaction.from.username}
+                </a>
+                {/* Assignment Button */}
+                {canAssign && (
+                  <div className="relative" ref={assignDropdownRef}>
+                    {assignment ? (
+                      <button
+                        onClick={() => onUnassign?.(interaction.id)}
+                        className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium bg-purple-100 text-purple-700 rounded-full hover:bg-purple-200 transition-colors"
+                        title={`Zuweisung von ${assignment.user_name} entfernen`}
+                      >
+                        <UserMinus size={12} />
+                        {assignment.user_name}
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => setShowAssignDropdown(!showAssignDropdown)}
+                          className="flex items-center gap-1 px-2 py-1 text-xs font-medium bg-gray-100 text-gray-600 rounded-full hover:bg-purple-100 hover:text-purple-700 transition-colors"
+                          title="Zuweisen"
+                        >
+                          <UserPlus size={12} />
+                          Zuweisen
+                          <ChevronDown size={12} />
+                        </button>
+                        {showAssignDropdown && (
+                          <div className="absolute left-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
+                            <p className="px-3 py-1.5 text-xs font-medium text-gray-500 border-b border-gray-100">
+                              Zuweisen an:
+                            </p>
+                            {assignableUsers.map((user) => (
+                              <button
+                                key={user.id}
+                                onClick={() => {
+                                  onAssign?.(interaction.id, user.id);
+                                  setShowAssignDropdown(false);
+                                }}
+                                className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-purple-50 hover:text-purple-700 transition-colors"
+                              >
+                                {user.name}
+                              </button>
+                            ))}
+                            {assignableUsers.length === 0 && (
+                              <p className="px-3 py-2 text-sm text-gray-400">Keine Benutzer verfügbar</p>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+                {/* Show assignment indicator for non-assigners */}
+                {!canAssign && assignment && (
+                  <span className="flex items-center gap-1 px-2 py-1 text-xs font-medium bg-purple-100 text-purple-700 rounded-full">
+                    <UserPlus size={12} />
+                    {assignment.user_name}
+                  </span>
+                )}
+              </div>
               <p className="text-sm text-gray-500 capitalize">
                 {interaction.type === 'comment' ? 'Kommentar' : interaction.type === 'dm' ? 'Direktnachricht' : 'Erwähnung'}
               </p>
