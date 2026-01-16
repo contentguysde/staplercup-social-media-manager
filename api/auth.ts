@@ -64,49 +64,57 @@ async function handleLogin(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { email, password } = req.body;
+  try {
+    const { email, password } = req.body;
 
-  if (!email || !password) {
-    return res.status(400).json({ error: 'E-Mail und Passwort sind erforderlich' });
+    if (!email || !password) {
+      return res.status(400).json({ error: 'E-Mail und Passwort sind erforderlich' });
+    }
+
+    const user = await findUserByEmail(email);
+    if (!user) {
+      return res.status(401).json({ error: 'Ungültige Anmeldedaten' });
+    }
+
+    const isValid = await verifyPassword(password, user.password_hash);
+    if (!isValid) {
+      return res.status(401).json({ error: 'Ungültige Anmeldedaten' });
+    }
+
+    const accessToken = generateAccessToken({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+    });
+
+    const refreshToken = generateRefreshToken();
+    const refreshTokenExpiry = getRefreshTokenExpiry();
+
+    await saveRefreshToken({
+      userId: user.id,
+      token: refreshToken,
+      expiresAt: refreshTokenExpiry.toISOString(),
+    });
+
+    res.setHeader('Set-Cookie', serialize('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60,
+      path: '/',
+    }));
+
+    return res.status(200).json({
+      user: toPublicUser(user),
+      accessToken,
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    return res.status(500).json({
+      error: 'Login fehlgeschlagen',
+      details: error instanceof Error ? error.message : String(error)
+    });
   }
-
-  const user = await findUserByEmail(email);
-  if (!user) {
-    return res.status(401).json({ error: 'Ungültige Anmeldedaten' });
-  }
-
-  const isValid = await verifyPassword(password, user.password_hash);
-  if (!isValid) {
-    return res.status(401).json({ error: 'Ungültige Anmeldedaten' });
-  }
-
-  const accessToken = generateAccessToken({
-    userId: user.id,
-    email: user.email,
-    role: user.role,
-  });
-
-  const refreshToken = generateRefreshToken();
-  const refreshTokenExpiry = getRefreshTokenExpiry();
-
-  await saveRefreshToken({
-    userId: user.id,
-    token: refreshToken,
-    expiresAt: refreshTokenExpiry.toISOString(),
-  });
-
-  res.setHeader('Set-Cookie', serialize('refreshToken', refreshToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-    maxAge: 7 * 24 * 60 * 60,
-    path: '/',
-  }));
-
-  return res.status(200).json({
-    user: toPublicUser(user),
-    accessToken,
-  });
 }
 
 // POST /api/auth/logout
