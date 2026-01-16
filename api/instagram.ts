@@ -70,12 +70,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(401).json({ error: 'Ungültiger Token' });
     }
 
-    // Extract the action from the URL path
-    // /api/instagram/status -> action = "status"
-    // /api/instagram/interactions -> action = "interactions"
-    const url = new URL(req.url || '', `http://${req.headers.host}`);
-    const pathParts = url.pathname.split('/').filter(Boolean);
-    const action = pathParts[2] || ''; // ['api', 'instagram', 'action']
+    // Extract the action from query parameter (set by Vercel rewrite)
+    const action = (req.query.action as string) || '';
 
     if (req.method !== 'GET') {
       return res.status(405).json({ error: 'Method not allowed' });

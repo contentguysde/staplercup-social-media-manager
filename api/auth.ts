@@ -28,11 +28,8 @@ import { sendVerificationEmail } from './_lib/email';
 import { serialize } from 'cookie';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Extract the action from the URL path
-  // /api/auth/login -> action = "login"
-  const url = new URL(req.url || '', `http://${req.headers.host}`);
-  const pathParts = url.pathname.split('/').filter(Boolean);
-  const action = pathParts[2] || ''; // ['api', 'auth', 'action']
+  // Extract the action from query parameter (set by Vercel rewrite)
+  const action = (req.query.action as string) || '';
 
   try {
     switch (action) {

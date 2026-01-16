@@ -33,17 +33,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(403).json({ error: 'Keine Berechtigung' });
     }
 
-    // Extract the action from the URL path
-    // /api/users -> list users
-    // /api/users/123 -> specific user operations
-    // /api/users/123/role -> update role
-    // /api/users/123/name -> update name
-    const url = new URL(req.url || '', `http://${req.headers.host}`);
-    const pathParts = url.pathname.split('/').filter(Boolean);
-    // ['api', 'users'] or ['api', 'users', '123'] or ['api', 'users', '123', 'role']
+    // Extract path from query parameter (set by Vercel rewrite)
+    // /api/users -> path = undefined
+    // /api/users/123 -> path = "123"
+    // /api/users/123/role -> path = "123/role"
+    const pathParam = (req.query.path as string) || '';
+    const pathParts = pathParam.split('/').filter(Boolean);
 
-    const userId = pathParts[2] ? parseInt(pathParts[2], 10) : null;
-    const action = pathParts[3] || null; // 'role', 'name', or null
+    const userId = pathParts[0] ? parseInt(pathParts[0], 10) : null;
+    const action = pathParts[1] || null; // 'role', 'name', or null
 
     // GET /api/users - List all users
     if (req.method === 'GET' && !userId) {

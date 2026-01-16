@@ -7,15 +7,15 @@
   "rewrites": [
     {
       "source": "/api/auth/:path*",
-      "destination": "/api/auth"
+      "destination": "/api/auth?action=:path*"
     },
     {
       "source": "/api/users/:path*",
-      "destination": "/api/users"
+      "destination": "/api/users?path=:path*"
     },
     {
       "source": "/api/instagram/:path*",
-      "destination": "/api/instagram"
+      "destination": "/api/instagram?action=:path*"
     },
     {
       "source": "/api/:path*",
