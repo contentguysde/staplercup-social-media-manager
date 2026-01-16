@@ -1,0 +1,37 @@
+{
+  "name": "staplercup-social-media-manager",
+  "version": "1.0.0",
+  "description": "StaplerCup Social Media Manager",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"cd backend && npm run dev\" \"cd frontend && npm run dev\"",
+    "build": "cd frontend && npm run build",
+    "vercel-build": "cd frontend && npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/contentguysde/staplercup-social-media-manager.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/contentguysde/staplercup-social-media-manager/issues"
+  },
+  "homepage": "https://github.com/contentguysde/staplercup-social-media-manager#readme",
+  "dependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cookie": "^0.6.0",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/nodemailer": "^7.0.5",
+    "@vercel/node": "^5.5.22",
+    "@vercel/postgres": "^0.10.0",
+    "axios": "^1.13.2",
+    "bcryptjs": "^3.0.3",
+    "cookie": "^1.1.1",
+    "dotenv": "^17.2.3",
+    "jsonwebtoken": "^9.0.3",
+    "nodemailer": "^7.0.12",
+    "typescript": "^5.9.3"
+  }
+}
