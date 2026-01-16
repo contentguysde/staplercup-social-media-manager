@@ -1,6 +1,6 @@
-import { MessageSquare, Mail, AtSign, Image, Filter, X, Archive, ArchiveRestore, MailOpen, Mail as MailIcon } from 'lucide-react';
-import { useState } from 'react';
-import type { Interaction, InteractionType, Urgency, Language, Topic, Platform } from '../../types';
+import { MessageSquare, Mail, AtSign, Image, Filter, X, Archive, ArchiveRestore, MailOpen, Mail as MailIcon, UserPlus, UserMinus } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import type { Interaction, InteractionType, Urgency, Language, Topic, Platform, AssignmentInfo, AssignableUser } from '../../types';
 import { InteractionLabels } from './InteractionLabels';
 
 interface FilterState {
@@ -20,6 +20,12 @@ interface InboxListProps {
   onUnarchive?: (interactionId: string) => void;
   onMarkAsRead?: (interactionId: string) => void;
   onMarkAsUnread?: (interactionId: string) => void;
+  // Assignment props
+  assignableUsers?: AssignableUser[];
+  allAssignments?: AssignmentInfo[];
+  onAssign?: (interactionId: string, userId: number) => void;
+  onUnassign?: (interactionId: string) => void;
+  canAssign?: boolean;
 }
 
 const typeIcons = {
@@ -126,6 +132,11 @@ export function InboxList({
   onUnarchive,
   onMarkAsRead,
   onMarkAsUnread,
+  assignableUsers = [],
+  allAssignments = [],
+  onAssign,
+  onUnassign,
+  canAssign = false,
 }: InboxListProps) {
   const [showFilters, setShowFilters] = useState(false);
   const [labelFilters, setLabelFilters] = useState<FilterState>({
@@ -134,6 +145,24 @@ export function InboxList({
     topic: null,
     channel: null,
   });
+  const [openAssignDropdown, setOpenAssignDropdown] = useState<string | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setOpenAssignDropdown(null);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Get assignment for an interaction
+  const getAssignment = (interactionId: string): AssignmentInfo | undefined => {
+    return allAssignments.find((a) => a.interaction_id === interactionId);
+  };
 
   const activeFilterCount = Object.values(labelFilters).filter((v) => v !== null).length;
 
@@ -393,6 +422,14 @@ export function InboxList({
                                 ✓ {interaction.replies.length} Antwort(en)
                               </p>
                             )}
+
+                            {/* Assignment indicator */}
+                            {getAssignment(interaction.id) && (
+                              <p className="text-xs text-purple-600 mt-1 flex items-center gap-1">
+                                <UserPlus size={10} />
+                                Zugewiesen: {getAssignment(interaction.id)?.user_name}
+                              </p>
+                            )}
                           </div>
 
                         </div>
@@ -427,6 +464,60 @@ export function InboxList({
                               <MailIcon size={14} />
                             </button>
                           )
+                        )}
+
+                        {/* Assignment button */}
+                        {canAssign && (
+                          <div className="relative" ref={openAssignDropdown === interaction.id ? dropdownRef : undefined}>
+                            {getAssignment(interaction.id) ? (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onUnassign?.(interaction.id);
+                                }}
+                                className="p-1.5 bg-white rounded-lg shadow-sm border border-gray-200 text-purple-600 hover:text-purple-700 hover:border-purple-300 transition-colors"
+                                title={`Zuweisung von ${getAssignment(interaction.id)?.user_name} entfernen`}
+                              >
+                                <UserMinus size={14} />
+                              </button>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setOpenAssignDropdown(openAssignDropdown === interaction.id ? null : interaction.id);
+                                  }}
+                                  className="p-1.5 bg-white rounded-lg shadow-sm border border-gray-200 text-gray-500 hover:text-purple-600 hover:border-purple-300 transition-colors"
+                                  title="Zuweisen"
+                                >
+                                  <UserPlus size={14} />
+                                </button>
+                                {openAssignDropdown === interaction.id && (
+                                  <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
+                                    <p className="px-3 py-1.5 text-xs font-medium text-gray-500 border-b border-gray-100">
+                                      Zuweisen an:
+                                    </p>
+                                    {assignableUsers.map((user) => (
+                                      <button
+                                        key={user.id}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          onAssign?.(interaction.id, user.id);
+                                          setOpenAssignDropdown(null);
+                                        }}
+                                        className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-purple-50 hover:text-purple-700 transition-colors"
+                                      >
+                                        {user.name}
+                                      </button>
+                                    ))}
+                                    {assignableUsers.length === 0 && (
+                                      <p className="px-3 py-2 text-sm text-gray-400">Keine Benutzer verfügbar</p>
+                                    )}
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
                         )}
 
                         {/* Archive/Unarchive button */}

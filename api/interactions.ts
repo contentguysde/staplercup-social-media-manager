@@ -8,6 +8,11 @@ import {
   markInteractionAsUnread,
   archiveInteraction,
   unarchiveInteraction,
+  assignInteraction,
+  unassignInteraction,
+  getInteractionsAssignedToUser,
+  getAllAssignments,
+  getAllUsers,
 } from './_lib/db';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -125,6 +130,74 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({
         success: true,
         data: metadata,
+      });
+    }
+
+    // POST /api/interactions/assign - Assign interaction to a user
+    if (req.method === 'POST' && action === 'assign') {
+      // Only managers and admins can assign
+      if (payload.role === 'viewer') {
+        return res.status(403).json({ error: 'Keine Berechtigung zum Zuweisen' });
+      }
+
+      const { interactionId, userId } = req.body;
+      if (!interactionId) {
+        return res.status(400).json({ error: 'interactionId ist erforderlich' });
+      }
+      if (!userId) {
+        return res.status(400).json({ error: 'userId ist erforderlich' });
+      }
+
+      const metadata = await assignInteraction(interactionId, userId);
+      return res.status(200).json({
+        success: true,
+        data: metadata,
+      });
+    }
+
+    // POST /api/interactions/unassign - Remove assignment from interaction
+    if (req.method === 'POST' && action === 'unassign') {
+      // Only managers and admins can unassign
+      if (payload.role === 'viewer') {
+        return res.status(403).json({ error: 'Keine Berechtigung zum Entfernen der Zuweisung' });
+      }
+
+      const { interactionId } = req.body;
+      if (!interactionId) {
+        return res.status(400).json({ error: 'interactionId ist erforderlich' });
+      }
+
+      const metadata = await unassignInteraction(interactionId);
+      return res.status(200).json({
+        success: true,
+        data: metadata,
+      });
+    }
+
+    // GET /api/interactions/my-assigned - Get interactions assigned to current user
+    if (req.method === 'GET' && action === 'my-assigned') {
+      const assignedIds = await getInteractionsAssignedToUser(payload.userId);
+      return res.status(200).json({
+        success: true,
+        data: assignedIds,
+      });
+    }
+
+    // GET /api/interactions/assignments - Get all assignments with user info
+    if (req.method === 'GET' && action === 'assignments') {
+      const assignments = await getAllAssignments();
+      return res.status(200).json({
+        success: true,
+        data: assignments,
+      });
+    }
+
+    // GET /api/interactions/users - Get all users for assignment dropdown
+    if (req.method === 'GET' && action === 'users') {
+      const users = await getAllUsers();
+      return res.status(200).json({
+        success: true,
+        data: users,
       });
     }
 

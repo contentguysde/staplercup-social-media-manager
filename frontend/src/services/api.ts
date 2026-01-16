@@ -1,6 +1,6 @@
 import axios from 'axios';
 import type { AxiosError, InternalAxiosRequestConfig } from 'axios';
-import type { Interaction, SuggestionRequest, SuggestionResponse, APIResponse, InteractionLabels, InteractionMetadata } from '../types';
+import type { Interaction, SuggestionRequest, SuggestionResponse, APIResponse, InteractionLabels, InteractionMetadata, AssignmentInfo, AssignableUser } from '../types';
 
 // In production (Vercel), API is at same origin. In development, use localhost:3001
 const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001');
@@ -379,6 +379,52 @@ export const interactionsApi = {
       throw new Error(response.data.error || 'Failed to unarchive');
     }
     return response.data.data!;
+  },
+
+  // Assignment operations
+  assign: async (interactionId: string, userId: number): Promise<InteractionMetadata> => {
+    const response = await api.post<APIResponse<InteractionMetadata>>('/interactions/assign', {
+      interactionId,
+      userId,
+    });
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to assign');
+    }
+    return response.data.data!;
+  },
+
+  unassign: async (interactionId: string): Promise<InteractionMetadata> => {
+    const response = await api.post<APIResponse<InteractionMetadata>>('/interactions/unassign', {
+      interactionId,
+    });
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to unassign');
+    }
+    return response.data.data!;
+  },
+
+  getMyAssigned: async (): Promise<string[]> => {
+    const response = await api.get<APIResponse<string[]>>('/interactions/my-assigned');
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to fetch assigned IDs');
+    }
+    return response.data.data || [];
+  },
+
+  getAllAssignments: async (): Promise<AssignmentInfo[]> => {
+    const response = await api.get<APIResponse<AssignmentInfo[]>>('/interactions/assignments');
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to fetch assignments');
+    }
+    return response.data.data || [];
+  },
+
+  getUsers: async (): Promise<AssignableUser[]> => {
+    const response = await api.get<APIResponse<AssignableUser[]>>('/interactions/users');
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to fetch users');
+    }
+    return response.data.data || [];
   },
 };
 

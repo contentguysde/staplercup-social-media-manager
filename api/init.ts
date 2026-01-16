@@ -2,6 +2,13 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { initDatabase, findUserByEmail, createUser, getUserCount } from './_lib/db';
 import { hashPassword } from './_lib/auth';
 
+interface AdditionalUser {
+  email: string;
+  password: string;
+  name: string;
+  role: 'admin' | 'manager' | 'viewer';
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Handle OPTIONS preflight requests
   if (req.method === 'OPTIONS') {
@@ -13,7 +20,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { initSecret, adminEmail, adminPassword, adminName } = req.body;
+  const { initSecret, adminEmail, adminPassword, adminName, additionalUsers } = req.body;
 
   // Require a secret to prevent unauthorized initialization
   const expectedSecret = process.env.INIT_SECRET || 'staplercup-init-2024';
@@ -49,6 +56,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         results.push(`Admin user already exists: ${adminEmail}`);
       } else {
         results.push(`${userCount} user(s) already exist in database`);
+      }
+    }
+
+    // Create additional users if provided
+    if (additionalUsers && Array.isArray(additionalUsers)) {
+      for (const user of additionalUsers as AdditionalUser[]) {
+        if (user.email && user.password && user.name && user.role) {
+          const existingUser = await findUserByEmail(user.email);
+          if (existingUser) {
+            results.push(`User already exists: ${user.email}`);
+          } else {
+            const passwordHash = await hashPassword(user.password);
+            await createUser({
+              email: user.email,
+              passwordHash,
+              name: user.name,
+              role: user.role,
+              emailVerified: 1,
+            });
+            results.push(`User created: ${user.email} (${user.role})`);
+          }
+        }
       }
     }
 

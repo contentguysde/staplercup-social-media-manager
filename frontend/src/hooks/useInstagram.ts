@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { instagramApi, aiApi, interactionsApi } from '../services/api';
 import type { ConnectionStatus } from '../services/api';
-import type { Interaction, InteractionType, Platform } from '../types';
+import type { Interaction, InteractionType, Platform, AssignmentInfo, AssignableUser } from '../types';
 
 interface UseInstagramOptions {
   autoRefresh?: boolean;
@@ -20,6 +20,9 @@ export function useInstagram(options: UseInstagramOptions = {}) {
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus | null>(null);
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
   const [archivedIds, setArchivedIds] = useState<Set<string>>(new Set());
+  const [myAssignedIds, setMyAssignedIds] = useState<Set<string>>(new Set());
+  const [allAssignments, setAllAssignments] = useState<AssignmentInfo[]>([]);
+  const [assignableUsers, setAssignableUsers] = useState<AssignableUser[]>([]);
 
   const categorizeInteractions = useCallback(async (data: Interaction[]) => {
     // Only categorize interactions that don't have labels yet
@@ -46,16 +49,32 @@ export function useInstagram(options: UseInstagramOptions = {}) {
 
   const fetchMetadata = useCallback(async () => {
     try {
-      const [archived, read] = await Promise.all([
+      const [archived, read, myAssigned, assignments, users] = await Promise.all([
         interactionsApi.getArchivedIds(),
         interactionsApi.getReadIds(),
+        interactionsApi.getMyAssigned(),
+        interactionsApi.getAllAssignments(),
+        interactionsApi.getUsers(),
       ]);
       setArchivedIds(new Set(archived));
       setReadIds(new Set(read));
-      return { archived: new Set(archived), read: new Set(read) };
+      setMyAssignedIds(new Set(myAssigned));
+      setAllAssignments(assignments);
+      setAssignableUsers(users);
+      return {
+        archived: new Set(archived),
+        read: new Set(read),
+        myAssigned: new Set(myAssigned),
+        assignments,
+      };
     } catch (err) {
       console.error('Failed to fetch interaction metadata:', err);
-      return { archived: new Set<string>(), read: new Set<string>() };
+      return {
+        archived: new Set<string>(),
+        read: new Set<string>(),
+        myAssigned: new Set<string>(),
+        assignments: [],
+      };
     }
   }, []);
 
@@ -210,6 +229,49 @@ export function useInstagram(options: UseInstagramOptions = {}) {
     }
   }, [archivedInteractions]);
 
+  const assignInteraction = useCallback(async (interactionId: string, userId: number) => {
+    try {
+      await interactionsApi.assign(interactionId, userId);
+      // Refresh assignments to get updated data
+      const [myAssigned, assignments] = await Promise.all([
+        interactionsApi.getMyAssigned(),
+        interactionsApi.getAllAssignments(),
+      ]);
+      setMyAssignedIds(new Set(myAssigned));
+      setAllAssignments(assignments);
+    } catch (err) {
+      console.error('Failed to assign:', err);
+      throw err;
+    }
+  }, []);
+
+  const unassignInteraction = useCallback(async (interactionId: string) => {
+    try {
+      await interactionsApi.unassign(interactionId);
+      // Update local state
+      setMyAssignedIds((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(interactionId);
+        return newSet;
+      });
+      setAllAssignments((prev) => prev.filter((a) => a.interaction_id !== interactionId));
+    } catch (err) {
+      console.error('Failed to unassign:', err);
+      throw err;
+    }
+  }, []);
+
+  // Get interactions assigned to the current user
+  const getMyAssignedInteractions = useCallback(() => {
+    const allInteractions = [...interactions, ...archivedInteractions];
+    return allInteractions.filter((i) => myAssignedIds.has(i.id));
+  }, [interactions, archivedInteractions, myAssignedIds]);
+
+  // Get assignment info for a specific interaction
+  const getAssignmentForInteraction = useCallback((interactionId: string): AssignmentInfo | undefined => {
+    return allAssignments.find((a) => a.interaction_id === interactionId);
+  }, [allAssignments]);
+
   return {
     interactions,
     archivedInteractions,
@@ -219,6 +281,9 @@ export function useInstagram(options: UseInstagramOptions = {}) {
     connectionStatus,
     readIds,
     archivedIds,
+    myAssignedIds,
+    allAssignments,
+    assignableUsers,
     refresh: fetchInteractions,
     replyToComment,
     sendMessage,
@@ -228,5 +293,9 @@ export function useInstagram(options: UseInstagramOptions = {}) {
     markAsUnread,
     archiveInteraction,
     unarchiveInteraction,
+    assignInteraction,
+    unassignInteraction,
+    getMyAssignedInteractions,
+    getAssignmentForInteraction,
   };
 }

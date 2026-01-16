@@ -83,14 +83,33 @@ export interface APIResponse<T> {
   message?: string;
 }
 
-// Interaction metadata for read/archive status
+// Interaction metadata for read/archive/assignment status
 export interface InteractionMetadata {
   id: number;
   interaction_id: string;
   is_read: number;
   is_archived: number;
+  assigned_to: number | null;
   read_at: string | null;
   archived_at: string | null;
+  assigned_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+// Assignment info with user details
+export interface AssignmentInfo {
+  interaction_id: string;
+  assigned_to: number;
+  assigned_at: string;
+  user_name: string;
+  user_email: string;
+}
+
+// User for assignment dropdown
+export interface AssignableUser {
+  id: number;
+  email: string;
+  name: string;
+  role: string;
 }

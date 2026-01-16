@@ -40,18 +40,34 @@ export async function initDatabase() {
     )
   `;
 
-  // Interaction metadata for read/archive status
+  // Interaction metadata for read/archive/assignment status
   await sql`
     CREATE TABLE IF NOT EXISTS interaction_metadata (
       id SERIAL PRIMARY KEY,
       interaction_id VARCHAR(255) UNIQUE NOT NULL,
       is_read INTEGER DEFAULT 0,
       is_archived INTEGER DEFAULT 0,
+      assigned_to INTEGER REFERENCES users(id) ON DELETE SET NULL,
       read_at TIMESTAMP,
       archived_at TIMESTAMP,
+      assigned_at TIMESTAMP,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
+  `;
+
+  // Add assigned_to column if it doesn't exist (for existing tables)
+  await sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'interaction_metadata' AND column_name = 'assigned_to'
+      ) THEN
+        ALTER TABLE interaction_metadata ADD COLUMN assigned_to INTEGER REFERENCES users(id) ON DELETE SET NULL;
+        ALTER TABLE interaction_metadata ADD COLUMN assigned_at TIMESTAMP;
+      END IF;
+    END $$;
   `;
 }
 
@@ -61,10 +77,21 @@ export interface InteractionMetadata {
   interaction_id: string;
   is_read: number;
   is_archived: number;
+  assigned_to: number | null;
   read_at: string | null;
   archived_at: string | null;
+  assigned_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+// Assignment info with user details
+export interface AssignmentInfo {
+  interaction_id: string;
+  assigned_to: number;
+  assigned_at: string;
+  user_name: string;
+  user_email: string;
 }
 
 // User operations
@@ -287,4 +314,81 @@ export async function unarchiveInteraction(interactionId: string): Promise<Inter
   }
 
   return (await getInteractionMetadata(interactionId))!;
+}
+
+// Assignment operations
+export async function assignInteraction(interactionId: string, userId: number): Promise<InteractionMetadata> {
+  const existing = await getInteractionMetadata(interactionId);
+
+  if (existing) {
+    await sql`
+      UPDATE interaction_metadata
+      SET assigned_to = ${userId}, assigned_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+      WHERE interaction_id = ${interactionId}
+    `;
+  } else {
+    await sql`
+      INSERT INTO interaction_metadata (interaction_id, assigned_to, assigned_at)
+      VALUES (${interactionId}, ${userId}, CURRENT_TIMESTAMP)
+    `;
+  }
+
+  return (await getInteractionMetadata(interactionId))!;
+}
+
+export async function unassignInteraction(interactionId: string): Promise<InteractionMetadata> {
+  const existing = await getInteractionMetadata(interactionId);
+
+  if (existing) {
+    await sql`
+      UPDATE interaction_metadata
+      SET assigned_to = NULL, assigned_at = NULL, updated_at = CURRENT_TIMESTAMP
+      WHERE interaction_id = ${interactionId}
+    `;
+  } else {
+    await sql`
+      INSERT INTO interaction_metadata (interaction_id)
+      VALUES (${interactionId})
+    `;
+  }
+
+  return (await getInteractionMetadata(interactionId))!;
+}
+
+export async function getInteractionsAssignedToUser(userId: number): Promise<string[]> {
+  const result = await sql`
+    SELECT interaction_id FROM interaction_metadata
+    WHERE assigned_to = ${userId}
+  `;
+  return result.rows.map((row) => (row as { interaction_id: string }).interaction_id);
+}
+
+export async function getAllAssignments(): Promise<AssignmentInfo[]> {
+  const result = await sql`
+    SELECT
+      im.interaction_id,
+      im.assigned_to,
+      im.assigned_at,
+      u.name as user_name,
+      u.email as user_email
+    FROM interaction_metadata im
+    JOIN users u ON im.assigned_to = u.id
+    WHERE im.assigned_to IS NOT NULL
+  `;
+  return result.rows as AssignmentInfo[];
+}
+
+export async function getAssignmentForInteraction(interactionId: string): Promise<AssignmentInfo | null> {
+  const result = await sql`
+    SELECT
+      im.interaction_id,
+      im.assigned_to,
+      im.assigned_at,
+      u.name as user_name,
+      u.email as user_email
+    FROM interaction_metadata im
+    JOIN users u ON im.assigned_to = u.id
+    WHERE im.interaction_id = ${interactionId} AND im.assigned_to IS NOT NULL
+  `;
+  return (result.rows[0] as AssignmentInfo) || null;
 }

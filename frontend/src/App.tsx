@@ -19,6 +19,7 @@ const viewTitles: Record<string, string> = {
   comments: 'Kommentare',
   messages: 'Nachrichten',
   mentions: 'Erwähnungen',
+  'my-assigned': 'Mir zugewiesen',
   archive: 'Archiv',
   settings: 'Einstellungen',
   // Channel views
@@ -61,6 +62,11 @@ function MainApp() {
     markAsUnread,
     archiveInteraction,
     unarchiveInteraction,
+    assignableUsers,
+    allAssignments,
+    assignInteraction,
+    unassignInteraction,
+    getMyAssignedInteractions,
   } = useInstagram({
     autoRefresh: true,
     refreshInterval: 60000,
@@ -68,6 +74,8 @@ function MainApp() {
 
   // Only show settings for admin users
   const canAccessSettings = user?.role === 'admin';
+  // Only managers and admins can assign
+  const canAssign = user?.role === 'admin' || user?.role === 'manager';
 
   // Reset error dismissed state when error changes
   const showError = error && !errorDismissed && activeView !== 'settings';
@@ -98,6 +106,7 @@ function MainApp() {
 
   const isInboxView = ['all', 'comments', 'messages', 'mentions', 'instagram', 'facebook', 'tiktok'].includes(activeView);
   const isArchiveView = activeView === 'archive';
+  const isMyAssignedView = activeView === 'my-assigned';
 
   // Handle interaction selection and mark as read
   const handleSelectInteraction = async (interaction: Interaction) => {
@@ -151,6 +160,23 @@ function MainApp() {
     }
   };
 
+  // Handle assignment
+  const handleAssign = async (interactionId: string, userId: number) => {
+    try {
+      await assignInteraction(interactionId, userId);
+    } catch (err) {
+      console.error('Failed to assign:', err);
+    }
+  };
+
+  const handleUnassign = async (interactionId: string) => {
+    try {
+      await unassignInteraction(interactionId);
+    } catch (err) {
+      console.error('Failed to unassign:', err);
+    }
+  };
+
   // Handle view change - prevent non-admins from accessing settings
   const handleViewChange = (view: string) => {
     if (view === 'settings' && !canAccessSettings) {
@@ -170,7 +196,7 @@ function MainApp() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header
           title={viewTitles[activeView] || 'StaplerCup Social'}
-          onRefresh={isInboxView ? refresh : undefined}
+          onRefresh={isInboxView || isArchiveView || isMyAssignedView ? refresh : undefined}
           loading={loading}
         />
 
@@ -252,6 +278,11 @@ function MainApp() {
                   onArchive={handleArchive}
                   onMarkAsRead={handleMarkAsRead}
                   onMarkAsUnread={handleMarkAsUnread}
+                  assignableUsers={assignableUsers}
+                  allAssignments={allAssignments}
+                  onAssign={handleAssign}
+                  onUnassign={handleUnassign}
+                  canAssign={canAssign}
                 />
               </div>
 
@@ -286,6 +317,11 @@ function MainApp() {
                   onUnarchive={handleUnarchive}
                   onMarkAsRead={handleMarkAsRead}
                   onMarkAsUnread={handleMarkAsUnread}
+                  assignableUsers={assignableUsers}
+                  allAssignments={allAssignments}
+                  onAssign={handleAssign}
+                  onUnassign={handleUnassign}
+                  canAssign={canAssign}
                 />
               </div>
 
@@ -301,6 +337,44 @@ function MainApp() {
                     <div className="text-center">
                       <p className="text-lg mb-2">Archivierte Interaktionen</p>
                       <p className="text-sm">Klicke auf eine Interaktion links, um sie anzuzeigen</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {isMyAssignedView && (
+            <div className="flex flex-1 min-h-0">
+              {/* My Assigned List */}
+              <div className="w-96 border-r border-gray-200 bg-white overflow-y-auto">
+                <InboxList
+                  interactions={getMyAssignedInteractions()}
+                  selectedId={selectedInteraction?.id || null}
+                  onSelect={handleSelectInteraction}
+                  onArchive={handleArchive}
+                  onMarkAsRead={handleMarkAsRead}
+                  onMarkAsUnread={handleMarkAsUnread}
+                  assignableUsers={assignableUsers}
+                  allAssignments={allAssignments}
+                  onAssign={handleAssign}
+                  onUnassign={handleUnassign}
+                  canAssign={canAssign}
+                />
+              </div>
+
+              {/* Conversation View */}
+              <div className="flex-1 bg-white overflow-hidden">
+                {selectedInteraction ? (
+                  <ConversationView
+                    interaction={selectedInteraction}
+                    onSendReply={handleSendReply}
+                  />
+                ) : (
+                  <div className="h-full flex items-center justify-center text-gray-400">
+                    <div className="text-center">
+                      <p className="text-lg mb-2">Mir zugewiesene Interaktionen</p>
+                      <p className="text-sm">Hier erscheinen Interaktionen, die dir zugewiesen wurden</p>
                     </div>
                   </div>
                 )}
