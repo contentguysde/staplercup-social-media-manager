@@ -40,3 +40,4 @@ temp/
 *.db
 backend/data/
 .vercel
+.env*.local
