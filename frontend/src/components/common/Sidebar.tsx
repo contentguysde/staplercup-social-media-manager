@@ -137,15 +137,15 @@ export function Sidebar({ activeView, onViewChange, showSettings = true, myAssig
           >
             <UserCheck size={18} />
             <span className="flex-1 text-left">Mir zugewiesen</span>
-            {myAssignedCount > 0 && (
-              <span className={`min-w-[20px] h-5 flex items-center justify-center px-1.5 text-xs font-medium rounded-full ${
-                activeView === 'my-assigned'
-                  ? 'bg-white/20 text-white'
-                  : 'bg-blue-600 text-white'
-              }`}>
-                {myAssignedCount}
-              </span>
-            )}
+            <span className={`min-w-[20px] h-5 flex items-center justify-center px-1.5 text-xs font-medium rounded-full ${
+              activeView === 'my-assigned'
+                ? 'bg-white/20 text-white'
+                : myAssignedCount > 0
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-700 text-gray-400'
+            }`}>
+              {myAssignedCount}
+            </span>
           </button>
         </div>
 
