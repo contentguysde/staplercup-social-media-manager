@@ -197,6 +197,7 @@ function MainApp() {
         activeView={activeView}
         onViewChange={handleViewChange}
         showSettings={canAccessSettings}
+        myAssignedCount={getMyAssignedInteractions().length}
       />
 
       <div className="flex-1 flex flex-col overflow-hidden">

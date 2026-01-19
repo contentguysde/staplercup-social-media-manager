@@ -5,6 +5,7 @@ interface SidebarProps {
   activeView: string;
   onViewChange: (view: string) => void;
   showSettings?: boolean;
+  myAssignedCount?: number;
 }
 
 const interactionTypes = [
@@ -19,7 +20,7 @@ const channels = [
   { id: 'tiktok', label: 'TikTok', icon: '🎵', active: false },
 ];
 
-export function Sidebar({ activeView, onViewChange, showSettings = true }: SidebarProps) {
+export function Sidebar({ activeView, onViewChange, showSettings = true, myAssignedCount = 0 }: SidebarProps) {
   const [channelsExpanded, setChannelsExpanded] = useState(true);
 
   return (
@@ -135,7 +136,16 @@ export function Sidebar({ activeView, onViewChange, showSettings = true }: Sideb
             }`}
           >
             <UserCheck size={18} />
-            <span>Mir zugewiesen</span>
+            <span className="flex-1 text-left">Mir zugewiesen</span>
+            {myAssignedCount > 0 && (
+              <span className={`min-w-[20px] h-5 flex items-center justify-center px-1.5 text-xs font-medium rounded-full ${
+                activeView === 'my-assigned'
+                  ? 'bg-white/20 text-white'
+                  : 'bg-blue-600 text-white'
+              }`}>
+                {myAssignedCount}
+              </span>
+            )}
           </button>
         </div>
 

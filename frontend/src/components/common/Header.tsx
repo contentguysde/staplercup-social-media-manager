@@ -1,4 +1,4 @@
-import { RefreshCw, Bell, LogOut, User, ChevronDown } from 'lucide-react';
+import { RefreshCw, LogOut, User, ChevronDown } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -51,11 +51,6 @@ export function Header({ title, onRefresh, loading }: HeaderProps) {
             <span>Aktualisieren</span>
           </button>
         )}
-
-        <button className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
-          <Bell size={20} />
-          <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-        </button>
 
         {/* User Menu */}
         <div className="relative" ref={menuRef}>
