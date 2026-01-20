@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { verifyAccessToken, getTokenFromHeader } from './_lib/auth';
+import { getInstagramCredentials } from './_lib/instagram-credentials';
 import axios from 'axios';
 
 // Mock data for development/demo
@@ -98,10 +99,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
 // GET /api/instagram/status
 async function handleStatus(_req: VercelRequest, res: VercelResponse) {
-  const accessToken = process.env.META_ACCESS_TOKEN;
-  const instagramAccountId = process.env.INSTAGRAM_ACCOUNT_ID;
+  // Get credentials from OAuth (database) first, then fall back to env vars
+  const credentials = await getInstagramCredentials();
 
-  if (!accessToken || !instagramAccountId) {
+  if (!credentials) {
     return res.status(200).json({
       success: true,
       data: {
@@ -115,11 +116,11 @@ async function handleStatus(_req: VercelRequest, res: VercelResponse) {
 
   try {
     const response = await axios.get(
-      `https://graph.instagram.com/v18.0/${instagramAccountId}`,
+      `https://graph.instagram.com/v18.0/${credentials.accountId}`,
       {
         params: {
           fields: 'id,username',
-          access_token: accessToken,
+          access_token: credentials.accessToken,
         },
       }
     );
@@ -130,6 +131,7 @@ async function handleStatus(_req: VercelRequest, res: VercelResponse) {
         connected: true,
         usingMockData: false,
         username: response.data.username,
+        source: credentials.source,
       },
     });
   } catch (error: any) {

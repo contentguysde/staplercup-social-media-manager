@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { verifyAccessToken, getTokenFromHeader } from './_lib/auth';
+import { getInstagramCredentials } from './_lib/instagram-credentials';
 import axios from 'axios';
 
 interface Settings {
@@ -156,10 +157,10 @@ function handleGetSettings(req: VercelRequest, res: VercelResponse) {
 
 // POST /api/settings/test/instagram
 async function handleTestInstagram(res: VercelResponse) {
-  const accessToken = process.env.META_ACCESS_TOKEN;
-  const accountId = process.env.INSTAGRAM_ACCOUNT_ID;
+  // Get credentials from OAuth (database) first, then fall back to env vars
+  const credentials = await getInstagramCredentials();
 
-  if (!accessToken || !accountId) {
+  if (!credentials) {
     return res.status(200).json({
       success: false,
       error: 'Instagram-Zugangsdaten nicht konfiguriert',
@@ -168,11 +169,11 @@ async function handleTestInstagram(res: VercelResponse) {
 
   try {
     const response = await axios.get(
-      `https://graph.instagram.com/v18.0/${accountId}`,
+      `https://graph.instagram.com/v18.0/${credentials.accountId}`,
       {
         params: {
           fields: 'id,username',
-          access_token: accessToken,
+          access_token: credentials.accessToken,
         },
       }
     );
@@ -182,6 +183,7 @@ async function handleTestInstagram(res: VercelResponse) {
       data: {
         connected: true,
         username: response.data.username,
+        source: credentials.source,
       },
     });
   } catch (error: any) {
@@ -270,9 +272,10 @@ async function handleTestAnthropic(res: VercelResponse) {
 
 // GET /api/settings/token-info
 async function handleGetTokenInfo(res: VercelResponse) {
-  const accessToken = process.env.META_ACCESS_TOKEN;
+  // Get credentials from OAuth (database) first, then fall back to env vars
+  const credentials = await getInstagramCredentials();
 
-  if (!accessToken || accessToken.startsWith('your_')) {
+  if (!credentials) {
     return res.status(200).json({
       success: false,
       error: 'Kein Access Token konfiguriert',
@@ -285,8 +288,8 @@ async function handleGetTokenInfo(res: VercelResponse) {
       'https://graph.facebook.com/debug_token',
       {
         params: {
-          input_token: accessToken,
-          access_token: accessToken,
+          input_token: credentials.accessToken,
+          access_token: credentials.accessToken,
         },
       }
     );
@@ -301,6 +304,7 @@ async function handleGetTokenInfo(res: VercelResponse) {
           expiresAt: null,
           scopes: [],
           daysUntilExpiry: null,
+          source: credentials.source,
         },
       });
     }
@@ -317,6 +321,7 @@ async function handleGetTokenInfo(res: VercelResponse) {
         expiresAt: expiresAt?.toISOString() || null,
         scopes: data.scopes || [],
         daysUntilExpiry,
+        source: credentials.source,
       },
     });
   } catch (error: any) {
