@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Save, Eye, EyeOff, CheckCircle, XCircle, Loader2, ExternalLink, ChevronDown, RefreshCw, Clock, AlertTriangle } from 'lucide-react';
-import { settingsApi, type Settings as SettingsType, type OpenAIModel, type TokenInfo } from '../../services/api';
+import { useSearchParams } from 'react-router-dom';
+import { Save, Eye, EyeOff, CheckCircle, XCircle, Loader2, ExternalLink, ChevronDown, RefreshCw, Clock, AlertTriangle, Link2, Unlink } from 'lucide-react';
+import { settingsApi, oauthApi, type Settings as SettingsType, type OpenAIModel, type TokenInfo, type OAuthStatus } from '../../services/api';
 import { UserManagement } from './UserManagement';
 
 export function Settings() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [_settings, setSettings] = useState<SettingsType | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -18,6 +20,7 @@ export function Settings() {
   const [anthropicResult, setAnthropicResult] = useState<{ connected: boolean; model?: string; error?: string } | null>(null);
   const [openaiModels, setOpenaiModels] = useState<OpenAIModel[]>([]);
   const [tokenInfo, setTokenInfo] = useState<TokenInfo | null>(null);
+  const [oauthStatus, setOauthStatus] = useState<OAuthStatus | null>(null);
 
   // Form state for new values
   const [formData, setFormData] = useState({
@@ -46,7 +49,46 @@ export function Settings() {
     loadSettings();
     loadOpenAIModels();
     loadTokenInfo();
-  }, []);
+    loadOAuthStatus();
+
+    // Handle OAuth callback params
+    const oauthSuccess = searchParams.get('oauth_success');
+    const oauthError = searchParams.get('oauth_error');
+    const username = searchParams.get('username');
+
+    if (oauthSuccess === 'true') {
+      setMessage({
+        type: 'success',
+        text: username
+          ? `Instagram erfolgreich verbunden als @${username}!`
+          : 'Instagram erfolgreich verbunden!',
+      });
+      // Clear the URL params
+      setSearchParams({});
+    } else if (oauthError) {
+      setMessage({
+        type: 'error',
+        text: `Instagram-Verbindung fehlgeschlagen: ${oauthError}`,
+      });
+      // Clear the URL params
+      setSearchParams({});
+    }
+  }, [searchParams, setSearchParams]);
+
+  const loadOAuthStatus = async () => {
+    try {
+      const status = await oauthApi.getStatus();
+      setOauthStatus(status);
+    } catch (error) {
+      console.error('Failed to load OAuth status:', error);
+      setOauthStatus(null);
+    }
+  };
+
+  const handleConnectInstagram = () => {
+    // Redirect to OAuth authorize endpoint
+    window.location.href = oauthApi.getAuthorizeUrl();
+  };
 
   const loadOpenAIModels = async () => {
     try {
@@ -237,6 +279,66 @@ export function Settings() {
             <h3 className="text-lg font-semibold text-gray-800">Instagram / Meta API</h3>
             <p className="text-sm text-gray-500">Verbinde deinen Instagram Business Account</p>
           </div>
+        </div>
+
+        {/* OAuth Connection Status */}
+        <div className="mb-6 p-4 rounded-lg border-2 border-dashed border-gray-200 bg-gray-50">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {oauthStatus?.connected ? (
+                <>
+                  <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+                    <CheckCircle size={20} className="text-green-600" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">
+                      Verbunden{oauthStatus.username ? ` als @${oauthStatus.username}` : ''}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      {oauthStatus.source === 'oauth' ? (
+                        oauthStatus.daysUntilExpiry !== undefined ? (
+                          <span className={oauthStatus.daysUntilExpiry <= 7 ? 'text-amber-600' : ''}>
+                            Token gültig für {oauthStatus.daysUntilExpiry} Tage
+                          </span>
+                        ) : (
+                          'Über OAuth verbunden'
+                        )
+                      ) : (
+                        'Über Umgebungsvariablen konfiguriert'
+                      )}
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
+                    <Unlink size={20} className="text-gray-400" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">Nicht verbunden</p>
+                    <p className="text-sm text-gray-500">Verbinde deinen Instagram Business Account</p>
+                  </div>
+                </>
+              )}
+            </div>
+            <button
+              onClick={handleConnectInstagram}
+              className={`px-4 py-2 rounded-lg flex items-center gap-2 font-medium transition-colors ${
+                oauthStatus?.connected
+                  ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  : 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600'
+              }`}
+            >
+              <Link2 size={18} />
+              {oauthStatus?.connected ? 'Neu verbinden' : 'Mit Instagram verbinden'}
+            </button>
+          </div>
+        </div>
+
+        <div className="border-t border-gray-200 pt-4 mb-4">
+          <p className="text-xs text-gray-500 mb-4">
+            Alternativ: Konfiguriere die Zugangsdaten manuell über das Vercel Dashboard
+          </p>
         </div>
 
         <div className="space-y-4">

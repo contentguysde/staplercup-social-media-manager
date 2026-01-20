@@ -315,6 +315,34 @@ export const settingsApi = {
   },
 };
 
+// OAuth Status response type
+export interface OAuthStatus {
+  connected: boolean;
+  source: 'oauth' | 'env' | null;
+  username?: string;
+  accountId?: string;
+  expiresAt?: string;
+  daysUntilExpiry?: number;
+  message?: string;
+}
+
+// OAuth API
+export const oauthApi = {
+  getStatus: async (): Promise<OAuthStatus> => {
+    const response = await api.get<APIResponse<OAuthStatus>>('/oauth/status');
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to get OAuth status');
+    }
+    return response.data.data!;
+  },
+
+  getAuthorizeUrl: (): string => {
+    // Returns the URL to start the OAuth flow
+    const baseUrl = import.meta.env.PROD ? '' : 'http://localhost:3001';
+    return `${baseUrl}/api/oauth/authorize`;
+  },
+};
+
 // Interactions Metadata API
 export const interactionsApi = {
   getMetadata: async (): Promise<InteractionMetadata[]> => {

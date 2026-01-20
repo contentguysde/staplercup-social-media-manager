@@ -6,6 +6,10 @@
   "framework": null,
   "rewrites": [
     {
+      "source": "/api/oauth/:path*",
+      "destination": "/api/oauth?action=:path*"
+    },
+    {
       "source": "/api/auth/:path*",
       "destination": "/api/auth?action=:path*"
     },
