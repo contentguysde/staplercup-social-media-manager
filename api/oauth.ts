@@ -7,16 +7,13 @@ const INSTAGRAM_APP_ID = process.env.META_APP_ID;
 const INSTAGRAM_APP_SECRET = process.env.META_APP_SECRET;
 const REDIRECT_URI = process.env.OAUTH_REDIRECT_URI || 'https://staplercup-social.vercel.app/api/oauth/callback';
 
-// Scopes needed for Instagram Business API
+// Scopes for Facebook Login for Business (new Instagram Business API permissions)
+// See: https://developers.facebook.com/docs/permissions
 const SCOPES = [
-  'instagram_basic',
-  'instagram_content_publish',
-  'instagram_manage_comments',
-  'instagram_manage_messages',
-  'pages_show_list',
-  'pages_read_engagement',
-  'pages_manage_metadata',
-  'business_management',
+  'instagram_business_basic',           // Basic Instagram Business account access
+  'instagram_business_manage_messages', // Read and respond to Instagram DMs
+  'instagram_business_manage_comments', // Read and respond to comments
+  'instagram_business_content_publish', // Publish content to Instagram
 ].join(',');
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -41,6 +38,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // GET /api/oauth/status - Check if Instagram is connected
     if (req.method === 'GET' && action === 'status') {
       return handleStatus(res);
+    }
+
+    // POST /api/oauth/disconnect - Remove stored credentials
+    if (req.method === 'POST' && action === 'disconnect') {
+      return handleDisconnect(res);
     }
 
     return res.status(404).json({ error: 'Endpoint nicht gefunden' });
@@ -274,6 +276,33 @@ async function handleStatus(res: VercelResponse) {
     return res.status(500).json({
       success: false,
       error: 'Status konnte nicht abgerufen werden',
+    });
+  }
+}
+
+// POST /api/oauth/disconnect - Remove stored credentials
+async function handleDisconnect(res: VercelResponse) {
+  try {
+    // Delete all stored Instagram credentials
+    await sql`DELETE FROM instagram_credentials`;
+
+    return res.status(200).json({
+      success: true,
+      message: 'Verbindung erfolgreich getrennt',
+    });
+  } catch (error: any) {
+    // Table might not exist, which is fine
+    if (error.message?.includes('does not exist')) {
+      return res.status(200).json({
+        success: true,
+        message: 'Keine Verbindung vorhanden',
+      });
+    }
+
+    console.error('OAuth disconnect error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Verbindung konnte nicht getrennt werden',
     });
   }
 }

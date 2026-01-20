@@ -90,6 +90,26 @@ export function Settings() {
     window.location.href = oauthApi.getAuthorizeUrl();
   };
 
+  const [disconnecting, setDisconnecting] = useState(false);
+
+  const handleDisconnectInstagram = async () => {
+    if (!confirm('Möchtest du die Instagram-Verbindung wirklich trennen?')) {
+      return;
+    }
+
+    try {
+      setDisconnecting(true);
+      await oauthApi.disconnect();
+      setMessage({ type: 'success', text: 'Instagram-Verbindung erfolgreich getrennt' });
+      setOauthStatus({ connected: false, source: null });
+      await loadOAuthStatus();
+    } catch (error) {
+      setMessage({ type: 'error', text: 'Verbindung konnte nicht getrennt werden' });
+    } finally {
+      setDisconnecting(false);
+    }
+  };
+
   const loadOpenAIModels = async () => {
     try {
       const models = await settingsApi.getOpenAIModels();
@@ -321,17 +341,29 @@ export function Settings() {
                 </>
               )}
             </div>
-            <button
-              onClick={handleConnectInstagram}
-              className={`px-4 py-2 rounded-lg flex items-center gap-2 font-medium transition-colors ${
-                oauthStatus?.connected
-                  ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  : 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600'
-              }`}
-            >
-              <Link2 size={18} />
-              {oauthStatus?.connected ? 'Neu verbinden' : 'Mit Instagram verbinden'}
-            </button>
+            <div className="flex items-center gap-2">
+              {oauthStatus?.connected && oauthStatus.source === 'oauth' && (
+                <button
+                  onClick={handleDisconnectInstagram}
+                  disabled={disconnecting}
+                  className="px-4 py-2 rounded-lg flex items-center gap-2 font-medium transition-colors bg-red-50 text-red-600 hover:bg-red-100 disabled:opacity-50"
+                >
+                  {disconnecting ? <Loader2 size={18} className="animate-spin" /> : <Unlink size={18} />}
+                  Trennen
+                </button>
+              )}
+              <button
+                onClick={handleConnectInstagram}
+                className={`px-4 py-2 rounded-lg flex items-center gap-2 font-medium transition-colors ${
+                  oauthStatus?.connected
+                    ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    : 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600'
+                }`}
+              >
+                <Link2 size={18} />
+                {oauthStatus?.connected ? 'Neu verbinden' : 'Mit Instagram verbinden'}
+              </button>
+            </div>
           </div>
         </div>
 

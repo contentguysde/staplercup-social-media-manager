@@ -341,6 +341,14 @@ export const oauthApi = {
     const baseUrl = import.meta.env.PROD ? '' : 'http://localhost:3001';
     return `${baseUrl}/api/oauth/authorize`;
   },
+
+  disconnect: async (): Promise<{ message: string }> => {
+    const response = await api.post<APIResponse<{ message: string }>>('/oauth/disconnect');
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to disconnect');
+    }
+    return { message: response.data.message || 'Verbindung getrennt' };
+  },
 };
 
 // Interactions Metadata API
