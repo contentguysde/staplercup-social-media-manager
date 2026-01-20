@@ -382,10 +382,21 @@ export const interactionsApi = {
   },
 
   // Assignment operations
-  assign: async (interactionId: string, userId: number): Promise<InteractionMetadata> => {
+  assign: async (
+    interactionId: string,
+    userId: number,
+    interactionData?: {
+      content: string;
+      type: string;
+      from: string;
+      timestamp: string;
+      platform: string;
+    }
+  ): Promise<InteractionMetadata> => {
     const response = await api.post<APIResponse<InteractionMetadata>>('/interactions/assign', {
       interactionId,
       userId,
+      interactionData,
     });
     if (!response.data.success) {
       throw new Error(response.data.error || 'Failed to assign');

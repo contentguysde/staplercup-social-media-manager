@@ -13,7 +13,9 @@ import {
   getInteractionsAssignedToUser,
   getAllAssignments,
   getAllUsers,
+  findUserById,
 } from './_lib/db';
+import { sendAssignmentNotificationEmail } from './_lib/email';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Handle OPTIONS preflight requests
@@ -140,7 +142,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(403).json({ error: 'Keine Berechtigung zum Zuweisen' });
       }
 
-      const { interactionId, userId } = req.body;
+      const { interactionId, userId, interactionData } = req.body;
       if (!interactionId) {
         return res.status(400).json({ error: 'interactionId ist erforderlich' });
       }
@@ -149,6 +151,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       const metadata = await assignInteraction(interactionId, userId);
+
+      // Send email notification to the assignee
+      try {
+        const assignee = await findUserById(userId);
+        if (assignee && interactionData) {
+          await sendAssignmentNotificationEmail({
+            assigneeEmail: assignee.email,
+            assigneeName: assignee.name,
+            assignerName: payload.name,
+            interactionContent: interactionData.content || '',
+            interactionType: interactionData.type || 'comment',
+            interactionFrom: interactionData.from || '',
+            interactionTimestamp: interactionData.timestamp || new Date().toISOString(),
+            platform: interactionData.platform || 'instagram',
+          });
+        }
+      } catch (emailError) {
+        // Log but don't fail the assignment if email fails
+        console.error('Failed to send assignment notification email:', emailError);
+      }
+
       return res.status(200).json({
         success: true,
         data: metadata,

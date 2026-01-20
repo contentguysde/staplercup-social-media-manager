@@ -161,9 +161,19 @@ function MainApp() {
   };
 
   // Handle assignment
-  const handleAssign = async (interactionId: string, userId: number) => {
+  const handleAssign = async (
+    interactionId: string,
+    userId: number,
+    interactionData?: {
+      content: string;
+      type: string;
+      from: string;
+      timestamp: string;
+      platform: string;
+    }
+  ) => {
     try {
-      await assignInteraction(interactionId, userId);
+      await assignInteraction(interactionId, userId, interactionData);
     } catch (err) {
       console.error('Failed to assign:', err);
     }

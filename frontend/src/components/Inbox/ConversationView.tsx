@@ -9,7 +9,13 @@ interface ConversationViewProps {
   // Assignment props
   assignableUsers?: AssignableUser[];
   assignment?: AssignmentInfo;
-  onAssign?: (interactionId: string, userId: number) => void;
+  onAssign?: (interactionId: string, userId: number, interactionData: {
+    content: string;
+    type: string;
+    from: string;
+    timestamp: string;
+    platform: string;
+  }) => void;
   onUnassign?: (interactionId: string) => void;
   canAssign?: boolean;
 }
@@ -161,7 +167,13 @@ export function ConversationView({
                               <button
                                 key={user.id}
                                 onClick={() => {
-                                  onAssign?.(interaction.id, user.id);
+                                  onAssign?.(interaction.id, user.id, {
+                                    content: interaction.content,
+                                    type: interaction.type,
+                                    from: interaction.from.username,
+                                    timestamp: interaction.timestamp,
+                                    platform: interaction.platform,
+                                  });
                                   setShowAssignDropdown(false);
                                 }}
                                 className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-purple-50 hover:text-purple-700 transition-colors"

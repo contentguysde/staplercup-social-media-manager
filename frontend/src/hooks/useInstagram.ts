@@ -229,9 +229,19 @@ export function useInstagram(options: UseInstagramOptions = {}) {
     }
   }, [archivedInteractions]);
 
-  const assignInteraction = useCallback(async (interactionId: string, userId: number) => {
+  const assignInteraction = useCallback(async (
+    interactionId: string,
+    userId: number,
+    interactionData?: {
+      content: string;
+      type: string;
+      from: string;
+      timestamp: string;
+      platform: string;
+    }
+  ) => {
     try {
-      await interactionsApi.assign(interactionId, userId);
+      await interactionsApi.assign(interactionId, userId, interactionData);
       // Refresh assignments to get updated data
       const [myAssigned, assignments] = await Promise.all([
         interactionsApi.getMyAssigned(),
