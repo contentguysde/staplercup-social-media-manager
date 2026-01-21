@@ -154,11 +154,139 @@ async function handleStatus(_req: VercelRequest, res: VercelResponse) {
 }
 
 // GET /api/instagram/interactions
-function handleInteractions(_req: VercelRequest, res: VercelResponse) {
-  // For now, return mock data
-  // In production, you would fetch from Instagram API here
-  return res.status(200).json({
-    success: true,
-    data: mockInteractions,
-  });
+async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
+  const credentials = await getInstagramCredentials();
+
+  if (!credentials) {
+    // Return mock data if not connected
+    return res.status(200).json({
+      success: true,
+      data: mockInteractions,
+      usingMockData: true,
+    });
+  }
+
+  try {
+    const interactions: any[] = [];
+
+    // Step 1: Get recent media posts from Instagram Business Account
+    const mediaResponse = await axios.get(
+      `https://graph.facebook.com/v18.0/${credentials.accountId}/media`,
+      {
+        params: {
+          fields: 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp',
+          limit: 25,
+          access_token: credentials.accessToken,
+        },
+      }
+    );
+
+    const posts = mediaResponse.data.data || [];
+
+    // Step 2: For each post, get comments
+    for (const post of posts) {
+      try {
+        const commentsResponse = await axios.get(
+          `https://graph.facebook.com/v18.0/${post.id}/comments`,
+          {
+            params: {
+              fields: 'id,text,timestamp,from{id,username},like_count',
+              limit: 50,
+              access_token: credentials.accessToken,
+            },
+          }
+        );
+
+        const comments = commentsResponse.data.data || [];
+
+        for (const comment of comments) {
+          interactions.push({
+            id: comment.id,
+            type: 'comment',
+            platform: 'instagram',
+            content: comment.text,
+            from: {
+              id: comment.from?.id || 'unknown',
+              username: comment.from?.username || 'Unbekannter Nutzer',
+              name: comment.from?.username || 'Unbekannter Nutzer',
+            },
+            timestamp: comment.timestamp,
+            read: false,
+            replied: false,
+            post: {
+              id: post.id,
+              mediaUrl: post.media_url || post.thumbnail_url,
+              caption: post.caption || '',
+              permalink: post.permalink,
+            },
+          });
+        }
+      } catch (commentError: any) {
+        // Skip posts where we can't fetch comments (might not have permission)
+        console.log(`Could not fetch comments for post ${post.id}:`, commentError.response?.data?.error?.message);
+      }
+    }
+
+    // Step 3: Try to get mentions (tagged media)
+    try {
+      const tagsResponse = await axios.get(
+        `https://graph.facebook.com/v18.0/${credentials.accountId}/tags`,
+        {
+          params: {
+            fields: 'id,caption,media_type,media_url,permalink,timestamp,username',
+            limit: 25,
+            access_token: credentials.accessToken,
+          },
+        }
+      );
+
+      const tags = tagsResponse.data.data || [];
+
+      for (const tag of tags) {
+        interactions.push({
+          id: `mention_${tag.id}`,
+          type: 'mention',
+          platform: 'instagram',
+          content: tag.caption || `Du wurdest von @${tag.username} markiert`,
+          from: {
+            id: tag.id,
+            username: tag.username || 'Unbekannter Nutzer',
+            name: tag.username || 'Unbekannter Nutzer',
+          },
+          timestamp: tag.timestamp,
+          read: false,
+          replied: false,
+          post: {
+            id: tag.id,
+            mediaUrl: tag.media_url,
+            caption: tag.caption || '',
+            permalink: tag.permalink,
+          },
+        });
+      }
+    } catch (tagsError: any) {
+      // Tags endpoint might not be available
+      console.log('Could not fetch mentions:', tagsError.response?.data?.error?.message);
+    }
+
+    // Sort by timestamp (newest first)
+    interactions.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+    return res.status(200).json({
+      success: true,
+      data: interactions,
+      usingMockData: false,
+    });
+
+  } catch (error: any) {
+    console.error('Error fetching Instagram interactions:', error.response?.data || error.message);
+
+    // Fall back to mock data on error
+    return res.status(200).json({
+      success: true,
+      data: mockInteractions,
+      usingMockData: true,
+      error: error.response?.data?.error?.message || 'Fehler beim Laden der Interaktionen',
+    });
+  }
 }
