@@ -115,11 +115,13 @@ async function handleStatus(_req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    // Use Facebook Graph API for Instagram Business accounts
+    // (Instagram Graph API is only for Basic Display API / personal accounts)
     const response = await axios.get(
-      `https://graph.instagram.com/v18.0/${credentials.accountId}`,
+      `https://graph.facebook.com/v18.0/${credentials.accountId}`,
       {
         params: {
-          fields: 'id,username',
+          fields: 'id,username,name,profile_picture_url',
           access_token: credentials.accessToken,
         },
       }
@@ -135,6 +137,7 @@ async function handleStatus(_req: VercelRequest, res: VercelResponse) {
       },
     });
   } catch (error: any) {
+    console.error('Instagram status check error:', error.response?.data || error.message);
     const errorMessage = error.response?.data?.error?.message || 'Verbindung fehlgeschlagen';
     const isExpired = errorMessage.includes('expired') || errorMessage.includes('Session');
 

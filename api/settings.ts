@@ -168,8 +168,9 @@ async function handleTestInstagram(res: VercelResponse) {
   }
 
   try {
+    // Use Facebook Graph API for Instagram Business accounts
     const response = await axios.get(
-      `https://graph.instagram.com/v18.0/${credentials.accountId}`,
+      `https://graph.facebook.com/v18.0/${credentials.accountId}`,
       {
         params: {
           fields: 'id,username',
