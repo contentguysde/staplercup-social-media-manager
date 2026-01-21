@@ -7,13 +7,17 @@ const INSTAGRAM_APP_ID = process.env.META_APP_ID;
 const INSTAGRAM_APP_SECRET = process.env.META_APP_SECRET;
 const REDIRECT_URI = process.env.OAUTH_REDIRECT_URI || 'https://staplercup-social.vercel.app/api/oauth/callback';
 
-// Scopes for Facebook Login for Business (new Instagram Business API permissions)
+// Scopes for Facebook Graph API - Instagram Business Account access
+// These are standard permissions that work without App Review for app admins/developers
 // See: https://developers.facebook.com/docs/permissions
 const SCOPES = [
-  'instagram_business_basic',           // Basic Instagram Business account access
-  'instagram_business_manage_messages', // Read and respond to Instagram DMs
-  'instagram_business_manage_comments', // Read and respond to comments
-  'instagram_business_content_publish', // Publish content to Instagram
+  'pages_show_list',                    // List user's Facebook Pages
+  'pages_read_engagement',              // Read Page posts and engagement
+  'pages_manage_metadata',              // Manage Page metadata
+  'instagram_basic',                    // Basic Instagram account info
+  'instagram_content_publish',          // Publish to Instagram (for admins without review)
+  'instagram_manage_comments',          // Read/manage comments (for admins without review)
+  'instagram_manage_insights',          // Access insights
 ].join(',');
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
