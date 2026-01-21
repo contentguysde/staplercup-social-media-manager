@@ -124,7 +124,8 @@ async function handleCallback(req: VercelRequest, res: VercelResponse) {
     });
 
     const longLivedToken = longLivedResponse.data.access_token;
-    const expiresIn = longLivedResponse.data.expires_in; // seconds
+    // expires_in is in seconds, default to 60 days if not provided
+    const expiresIn = longLivedResponse.data.expires_in || (60 * 24 * 60 * 60);
 
     // Step 3: Get user's Facebook pages
     const pagesResponse = await axios.get('https://graph.facebook.com/v18.0/me/accounts', {
