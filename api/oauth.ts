@@ -195,8 +195,15 @@ async function handleCallback(req: VercelRequest, res: VercelResponse) {
     return res.redirect(302, `${frontendUrl}/settings?oauth_success=true&username=${encodeURIComponent(instagramUsername || '')}`);
 
   } catch (error: any) {
-    console.error('OAuth token exchange error:', error.response?.data || error.message);
-    const errorMessage = error.response?.data?.error?.message || 'Token-Austausch fehlgeschlagen';
+    console.error('OAuth token exchange error:', JSON.stringify(error.response?.data || error.message, null, 2));
+    // Get detailed error message from Facebook API
+    let errorMessage = 'Token-Austausch fehlgeschlagen';
+    if (error.response?.data?.error) {
+      const fbError = error.response.data.error;
+      errorMessage = `${fbError.message || errorMessage}${fbError.error_subcode ? ` (Code: ${fbError.error_subcode})` : ''}`;
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
     return res.redirect(302, `${frontendUrl}/settings?oauth_error=${encodeURIComponent(errorMessage)}`);
   }
 }
