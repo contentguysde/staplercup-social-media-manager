@@ -14,10 +14,11 @@ const mockInteractions = [
     timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
     read: false,
     replied: false,
-    post: {
-      id: 'post_1',
+    context: {
+      mediaId: 'post_1',
       mediaUrl: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=400',
-      caption: 'StaplerCup 2024 - Die besten Momente!',
+      mediaCaption: 'StaplerCup 2024 - Die besten Momente!',
+      mediaPermalink: 'https://www.instagram.com/p/example1/',
     },
   },
   {
@@ -39,6 +40,12 @@ const mockInteractions = [
     timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
     read: true,
     replied: true,
+    context: {
+      mediaId: 'post_3',
+      mediaUrl: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=400',
+      mediaCaption: 'StaplerCup Highlights',
+      mediaPermalink: 'https://www.instagram.com/p/example3/',
+    },
   },
   {
     id: 'mock_4',
@@ -49,10 +56,11 @@ const mockInteractions = [
     timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
     read: true,
     replied: false,
-    post: {
-      id: 'post_2',
+    context: {
+      mediaId: 'post_2',
       mediaUrl: 'https://images.unsplash.com/photo-1553413077-190dd305871c?w=400',
-      caption: 'Finale StaplerCup 2024',
+      mediaCaption: 'Finale StaplerCup 2024',
+      mediaPermalink: 'https://www.instagram.com/p/example2/',
     },
   },
 ];
@@ -79,17 +87,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Extract the action from query parameter (set by Vercel rewrite)
     const action = (req.query.action as string) || '';
 
-    if (req.method !== 'GET') {
+    // Handle different HTTP methods and actions
+    if (req.method === 'GET') {
+      switch (action) {
+        case 'status':
+          return handleStatus(req, res);
+        case 'interactions':
+          return handleInteractions(req, res);
+        case 'conversations':
+          return handleGetConversations(req, res);
+        case 'messages':
+          return handleGetMessages(req, res);
+        default:
+          return res.status(404).json({ error: 'Endpoint nicht gefunden' });
+      }
+    } else if (req.method === 'POST') {
+      switch (action) {
+        case 'send-message':
+          return handleSendMessage(req, res);
+        default:
+          return res.status(404).json({ error: 'Endpoint nicht gefunden' });
+      }
+    } else {
       return res.status(405).json({ error: 'Method not allowed' });
-    }
-
-    switch (action) {
-      case 'status':
-        return handleStatus(req, res);
-      case 'interactions':
-        return handleInteractions(req, res);
-      default:
-        return res.status(404).json({ error: 'Endpoint nicht gefunden' });
     }
   } catch (error) {
     console.error('Instagram error:', error);
@@ -213,11 +233,11 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
             timestamp: comment.timestamp,
             read: false,
             replied: false,
-            post: {
-              id: post.id,
+            context: {
+              mediaId: post.id,
               mediaUrl: post.media_url || post.thumbnail_url,
-              caption: post.caption || '',
-              permalink: post.permalink,
+              mediaCaption: post.caption || '',
+              mediaPermalink: post.permalink,
             },
           });
         }
@@ -256,17 +276,61 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
           timestamp: tag.timestamp,
           read: false,
           replied: false,
-          post: {
-            id: tag.id,
+          context: {
+            mediaId: tag.id,
             mediaUrl: tag.media_url,
-            caption: tag.caption || '',
-            permalink: tag.permalink,
+            mediaCaption: tag.caption || '',
+            mediaPermalink: tag.permalink,
           },
         });
       }
     } catch (tagsError: any) {
       // Tags endpoint might not be available
       console.log('Could not fetch mentions:', tagsError.response?.data?.error?.message);
+    }
+
+    // Step 4: Try to get DM conversations
+    try {
+      const conversationsResponse = await axios.get(
+        `https://graph.facebook.com/v18.0/${credentials.accountId}/conversations`,
+        {
+          params: {
+            platform: 'instagram',
+            fields: 'id,participants,updated_time,messages.limit(1){id,message,from,created_time}',
+            limit: 25,
+            access_token: credentials.accessToken,
+          },
+        }
+      );
+
+      const conversations = conversationsResponse.data.data || [];
+
+      for (const conv of conversations) {
+        const participant = conv.participants?.data?.find((p: any) => p.id !== credentials.accountId);
+        const latestMessage = conv.messages?.data?.[0];
+
+        if (latestMessage && latestMessage.from?.id !== credentials.accountId) {
+          // Only add incoming messages (not our own replies)
+          interactions.push({
+            id: `dm_${conv.id}`,
+            type: 'dm',
+            platform: 'instagram',
+            content: latestMessage.message || '',
+            from: {
+              id: participant?.id || latestMessage.from?.id || 'unknown',
+              username: participant?.username || latestMessage.from?.username || 'Unbekannter Nutzer',
+              name: participant?.name || participant?.username || latestMessage.from?.name || 'Unbekannter Nutzer',
+            },
+            timestamp: latestMessage.created_time,
+            read: false,
+            replied: false,
+            conversationId: conv.id,
+          });
+        }
+      }
+    } catch (dmError: any) {
+      // DM endpoint requires instagram_manage_messages permission
+      console.log('Could not fetch DMs:', dmError.response?.data?.error?.message);
     }
 
     // Sort by timestamp (newest first)
@@ -287,6 +351,193 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
       data: mockInteractions,
       usingMockData: true,
       error: error.response?.data?.error?.message || 'Fehler beim Laden der Interaktionen',
+    });
+  }
+}
+
+// GET /api/instagram/conversations - Get Instagram DM conversations
+async function handleGetConversations(_req: VercelRequest, res: VercelResponse) {
+  const credentials = await getInstagramCredentials();
+
+  if (!credentials) {
+    return res.status(200).json({
+      success: true,
+      data: [],
+      usingMockData: true,
+      error: 'Instagram nicht verbunden',
+    });
+  }
+
+  try {
+    // Get conversations from Instagram Business Account
+    // Note: This requires instagram_manage_messages permission
+    const conversationsResponse = await axios.get(
+      `https://graph.facebook.com/v18.0/${credentials.accountId}/conversations`,
+      {
+        params: {
+          platform: 'instagram',
+          fields: 'id,participants,updated_time,messages{id,message,from,created_time}',
+          limit: 25,
+          access_token: credentials.accessToken,
+        },
+      }
+    );
+
+    const conversations = conversationsResponse.data.data || [];
+
+    // Transform conversations into our format
+    const formattedConversations = conversations.map((conv: any) => {
+      const participant = conv.participants?.data?.find((p: any) => p.id !== credentials.accountId);
+      const latestMessage = conv.messages?.data?.[0];
+
+      return {
+        id: conv.id,
+        participant: {
+          id: participant?.id || 'unknown',
+          username: participant?.username || 'Unbekannter Nutzer',
+          name: participant?.name || participant?.username || 'Unbekannter Nutzer',
+        },
+        lastMessage: latestMessage ? {
+          id: latestMessage.id,
+          content: latestMessage.message,
+          timestamp: latestMessage.created_time,
+          fromMe: latestMessage.from?.id === credentials.accountId,
+        } : null,
+        updatedAt: conv.updated_time,
+      };
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: formattedConversations,
+      usingMockData: false,
+    });
+
+  } catch (error: any) {
+    console.error('Error fetching Instagram conversations:', error.response?.data || error.message);
+
+    return res.status(200).json({
+      success: true,
+      data: [],
+      usingMockData: true,
+      error: error.response?.data?.error?.message || 'Fehler beim Laden der Konversationen',
+    });
+  }
+}
+
+// GET /api/instagram/messages?conversationId=xxx - Get messages in a conversation
+async function handleGetMessages(req: VercelRequest, res: VercelResponse) {
+  const conversationId = req.query.conversationId as string;
+
+  if (!conversationId) {
+    return res.status(400).json({
+      success: false,
+      error: 'conversationId ist erforderlich',
+    });
+  }
+
+  const credentials = await getInstagramCredentials();
+
+  if (!credentials) {
+    return res.status(200).json({
+      success: false,
+      error: 'Instagram nicht verbunden',
+    });
+  }
+
+  try {
+    // Get messages from the conversation
+    const messagesResponse = await axios.get(
+      `https://graph.facebook.com/v18.0/${conversationId}`,
+      {
+        params: {
+          fields: 'messages{id,message,from,created_time,attachments}',
+          access_token: credentials.accessToken,
+        },
+      }
+    );
+
+    const messages = messagesResponse.data.messages?.data || [];
+
+    // Transform messages into our format
+    const formattedMessages = messages.map((msg: any) => ({
+      id: msg.id,
+      content: msg.message || '',
+      timestamp: msg.created_time,
+      from: {
+        id: msg.from?.id || 'unknown',
+        username: msg.from?.username || msg.from?.name || 'Unbekannter Nutzer',
+        name: msg.from?.name || msg.from?.username || 'Unbekannter Nutzer',
+      },
+      fromMe: msg.from?.id === credentials.accountId,
+      attachments: msg.attachments?.data || [],
+    }));
+
+    return res.status(200).json({
+      success: true,
+      data: formattedMessages,
+    });
+
+  } catch (error: any) {
+    console.error('Error fetching messages:', error.response?.data || error.message);
+
+    return res.status(200).json({
+      success: false,
+      error: error.response?.data?.error?.message || 'Fehler beim Laden der Nachrichten',
+    });
+  }
+}
+
+// POST /api/instagram/send-message - Send a DM reply
+async function handleSendMessage(req: VercelRequest, res: VercelResponse) {
+  const { recipientId, message } = req.body;
+
+  if (!recipientId || !message) {
+    return res.status(400).json({
+      success: false,
+      error: 'recipientId und message sind erforderlich',
+    });
+  }
+
+  const credentials = await getInstagramCredentials();
+
+  if (!credentials) {
+    return res.status(200).json({
+      success: false,
+      error: 'Instagram nicht verbunden',
+    });
+  }
+
+  try {
+    // Send message using the Instagram Messaging API
+    // Note: This requires instagram_manage_messages permission
+    const response = await axios.post(
+      `https://graph.facebook.com/v18.0/${credentials.accountId}/messages`,
+      {
+        recipient: { id: recipientId },
+        message: { text: message },
+      },
+      {
+        params: {
+          access_token: credentials.accessToken,
+        },
+      }
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        messageId: response.data.message_id,
+        recipientId: response.data.recipient_id,
+      },
+    });
+
+  } catch (error: any) {
+    console.error('Error sending Instagram message:', error.response?.data || error.message);
+
+    return res.status(200).json({
+      success: false,
+      error: error.response?.data?.error?.message || 'Nachricht konnte nicht gesendet werden',
     });
   }
 }
