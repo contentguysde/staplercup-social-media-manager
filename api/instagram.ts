@@ -189,64 +189,87 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
   try {
     const interactions: any[] = [];
 
-    // Step 1: Get recent media posts with comments in a single request
-    const mediaResponse = await axios.get(
-      `https://graph.facebook.com/v18.0/${credentials.accountId}/media`,
-      {
-        params: {
-          // Include comments directly in the media request to avoid multiple API calls
-          fields: 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,comments.limit(20){id,text,timestamp,from{id,username}}',
-          limit: 10, // Reduced from 25 to avoid timeout
-          access_token: credentials.accessToken,
-        },
-      }
-    );
+    // Configure axios with timeout to prevent Vercel function timeout
+    const apiConfig = { timeout: 8000 }; // 8 seconds max per request
 
-    const posts = mediaResponse.data.data || [];
-
-    // Step 2: Process comments from the nested response
-    for (const post of posts) {
-      const comments = post.comments?.data || [];
-
-      for (const comment of comments) {
-        interactions.push({
-          id: comment.id,
-          type: 'comment',
-          platform: 'instagram',
-          content: comment.text,
-          from: {
-            id: comment.from?.id || 'unknown',
-            username: comment.from?.username || 'Unbekannter Nutzer',
-            name: comment.from?.username || 'Unbekannter Nutzer',
-          },
-          timestamp: comment.timestamp,
-          read: false,
-          replied: false,
-          context: {
-            mediaId: post.id,
-            mediaUrl: post.media_url || post.thumbnail_url,
-            mediaCaption: post.caption || '',
-            mediaPermalink: post.permalink,
-          },
-        });
-      }
-    }
-
-    // Step 3: Try to get mentions (tagged media)
-    try {
-      const tagsResponse = await axios.get(
-        `https://graph.facebook.com/v18.0/${credentials.accountId}/tags`,
+    // Run all API calls in parallel with Promise.allSettled to handle failures gracefully
+    const [mediaResult, tagsResult, conversationsResult] = await Promise.allSettled([
+      // Step 1: Get recent media posts with comments
+      axios.get(
+        `https://graph.facebook.com/v18.0/${credentials.accountId}/media`,
         {
+          ...apiConfig,
           params: {
-            fields: 'id,caption,media_type,media_url,permalink,timestamp,username',
-            limit: 25,
+            fields: 'id,caption,media_url,thumbnail_url,permalink,timestamp,comments.limit(10){id,text,timestamp,from{id,username}}',
+            limit: 5, // Reduced to avoid timeout
             access_token: credentials.accessToken,
           },
         }
-      );
+      ),
+      // Step 2: Get mentions (tagged media)
+      axios.get(
+        `https://graph.facebook.com/v18.0/${credentials.accountId}/tags`,
+        {
+          ...apiConfig,
+          params: {
+            fields: 'id,caption,media_url,permalink,timestamp,username',
+            limit: 10,
+            access_token: credentials.accessToken,
+          },
+        }
+      ),
+      // Step 3: Get DM conversations (if pageId available)
+      credentials.pageId
+        ? axios.get(
+            `https://graph.facebook.com/v18.0/${credentials.pageId}/conversations`,
+            {
+              ...apiConfig,
+              params: {
+                platform: 'instagram',
+                fields: 'id,participants,updated_time,messages.limit(1){id,message,from,created_time}',
+                limit: 10,
+                access_token: credentials.accessToken,
+              },
+            }
+          )
+        : Promise.resolve({ data: { data: [] } }),
+    ]);
 
-      const tags = tagsResponse.data.data || [];
+    // Process media/comments
+    if (mediaResult.status === 'fulfilled') {
+      const posts = mediaResult.value.data.data || [];
+      for (const post of posts) {
+        const comments = post.comments?.data || [];
+        for (const comment of comments) {
+          interactions.push({
+            id: comment.id,
+            type: 'comment',
+            platform: 'instagram',
+            content: comment.text,
+            from: {
+              id: comment.from?.id || 'unknown',
+              username: comment.from?.username || 'Unbekannter Nutzer',
+              name: comment.from?.username || 'Unbekannter Nutzer',
+            },
+            timestamp: comment.timestamp,
+            read: false,
+            replied: false,
+            context: {
+              mediaId: post.id,
+              mediaUrl: post.media_url || post.thumbnail_url,
+              mediaCaption: post.caption || '',
+              mediaPermalink: post.permalink,
+            },
+          });
+        }
+      }
+    } else {
+      console.log('Could not fetch media:', (mediaResult.reason as any)?.response?.data?.error?.message || mediaResult.reason);
+    }
 
+    // Process mentions
+    if (tagsResult.status === 'fulfilled') {
+      const tags = tagsResult.value.data.data || [];
       for (const tag of tags) {
         interactions.push({
           id: `mention_${tag.id}`,
@@ -269,66 +292,45 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
           },
         });
       }
-    } catch (tagsError: any) {
-      // Tags endpoint might not be available
-      console.log('Could not fetch mentions:', tagsError.response?.data?.error?.message);
+    } else {
+      console.log('Could not fetch mentions:', (tagsResult.reason as any)?.response?.data?.error?.message || tagsResult.reason);
     }
 
-    // Step 4: Try to get DM conversations (requires pageId)
-    if (credentials.pageId) {
-      try {
-        const conversationsResponse = await axios.get(
-          `https://graph.facebook.com/v18.0/${credentials.pageId}/conversations`,
-          {
-            params: {
-              platform: 'instagram',
-              fields: 'id,participants,updated_time,messages.limit(1){id,message,from,created_time}',
-              limit: 25,
-              access_token: credentials.accessToken,
-            },
-          }
+    // Process DMs
+    if (conversationsResult.status === 'fulfilled' && credentials.pageId) {
+      const conversations = conversationsResult.value.data.data || [];
+      for (const conv of conversations) {
+        const participant = conv.participants?.data?.find(
+          (p: any) => p.id !== credentials.pageId && p.id !== credentials.accountId
         );
+        const latestMessage = conv.messages?.data?.[0];
 
-        const conversations = conversationsResponse.data.data || [];
+        if (latestMessage) {
+          const isFromOther =
+            latestMessage.from?.id !== credentials.pageId &&
+            latestMessage.from?.id !== credentials.accountId;
 
-        for (const conv of conversations) {
-          // Find the participant that is not our page/account
-          const participant = conv.participants?.data?.find(
-            (p: any) => p.id !== credentials.pageId && p.id !== credentials.accountId
-          );
-          const latestMessage = conv.messages?.data?.[0];
-
-          if (latestMessage) {
-            // Check if the last message is from someone else (not us)
-            const isFromOther =
-              latestMessage.from?.id !== credentials.pageId &&
-              latestMessage.from?.id !== credentials.accountId;
-
-            if (isFromOther) {
-              interactions.push({
-                id: `dm_${conv.id}`,
-                type: 'dm',
-                platform: 'instagram',
-                content: latestMessage.message || '',
-                from: {
-                  id: participant?.id || latestMessage.from?.id || 'unknown',
-                  username: participant?.username || latestMessage.from?.username || 'Unbekannter Nutzer',
-                  name: participant?.name || participant?.username || latestMessage.from?.name || 'Unbekannter Nutzer',
-                },
-                timestamp: latestMessage.created_time,
-                read: false,
-                replied: false,
-                conversationId: conv.id,
-              });
-            }
+          if (isFromOther) {
+            interactions.push({
+              id: `dm_${conv.id}`,
+              type: 'dm',
+              platform: 'instagram',
+              content: latestMessage.message || '',
+              from: {
+                id: participant?.id || latestMessage.from?.id || 'unknown',
+                username: participant?.username || latestMessage.from?.username || 'Unbekannter Nutzer',
+                name: participant?.name || participant?.username || latestMessage.from?.name || 'Unbekannter Nutzer',
+              },
+              timestamp: latestMessage.created_time,
+              read: false,
+              replied: false,
+              conversationId: conv.id,
+            });
           }
         }
-      } catch (dmError: any) {
-        // DM endpoint requires instagram_manage_messages permission
-        console.log('Could not fetch DMs:', dmError.response?.data?.error?.message);
       }
-    } else {
-      console.log('Could not fetch DMs: pageId not available');
+    } else if (conversationsResult.status === 'rejected') {
+      console.log('Could not fetch DMs:', (conversationsResult.reason as any)?.response?.data?.error?.message || conversationsResult.reason);
     }
 
     // Sort by timestamp (newest first)
