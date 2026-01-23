@@ -142,10 +142,11 @@ async function handleCallback(req: VercelRequest, res: VercelResponse) {
       return res.redirect(302, `${frontendUrl}/settings?oauth_error=${encodeURIComponent('Keine Facebook-Seiten gefunden. Bitte verbinde eine Facebook-Seite mit deinem Instagram-Konto.')}`);
     }
 
-    // Step 4: Get Instagram Business Account ID from the first page
+    // Step 4: Get Instagram Business Account ID and Page ID from the pages
     let instagramAccountId = null;
     let instagramUsername = null;
     let pageAccessToken = null;
+    let pageId = null;
 
     for (const page of pages) {
       try {
@@ -160,6 +161,7 @@ async function handleCallback(req: VercelRequest, res: VercelResponse) {
           instagramAccountId = igAccountResponse.data.instagram_business_account.id;
           instagramUsername = igAccountResponse.data.instagram_business_account.username;
           pageAccessToken = page.access_token;
+          pageId = page.id; // Store the page ID directly
           break;
         }
       } catch (err) {
@@ -173,25 +175,6 @@ async function handleCallback(req: VercelRequest, res: VercelResponse) {
 
     // Step 5: Store the tokens in database
     const expiresAt = new Date(Date.now() + expiresIn * 1000);
-
-    // Find the page ID that has the Instagram account
-    let pageId = null;
-    for (const page of pages) {
-      try {
-        const igAccountResponse = await axios.get(`https://graph.facebook.com/v18.0/${page.id}`, {
-          params: {
-            fields: 'instagram_business_account{id}',
-            access_token: page.access_token,
-          },
-        });
-        if (igAccountResponse.data.instagram_business_account?.id === instagramAccountId) {
-          pageId = page.id;
-          break;
-        }
-      } catch {
-        // Skip pages that fail
-      }
-    }
 
     await sql`
       CREATE TABLE IF NOT EXISTS instagram_credentials (
