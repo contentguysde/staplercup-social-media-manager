@@ -1,4 +1,5 @@
 export type Role = 'admin' | 'manager' | 'viewer';
+export type Language = 'de' | 'en';
 
 export interface TokenPayload {
   userId: number;
@@ -12,6 +13,7 @@ export interface User {
   password_hash: string;
   name: string;
   role: Role;
+  language: Language;
   email_verified: number;
   created_at: string;
   updated_at: string;
@@ -22,6 +24,7 @@ export interface UserPublic {
   email: string;
   name: string;
   role: Role;
+  language: Language;
   email_verified: number;
   created_at: string;
   updated_at: string;

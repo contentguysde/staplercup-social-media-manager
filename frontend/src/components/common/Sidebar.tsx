@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MessageSquare, AtSign, Mail, LayoutDashboard, Settings, ChevronDown, ChevronRight, Archive, UserCheck } from 'lucide-react';
 
 interface SidebarProps {
@@ -9,9 +10,9 @@ interface SidebarProps {
 }
 
 const interactionTypes = [
-  { id: 'comments', label: 'Kommentare', icon: MessageSquare },
-  { id: 'messages', label: 'Nachrichten', icon: Mail },
-  { id: 'mentions', label: 'Erwähnungen', icon: AtSign },
+  { id: 'comments', labelKey: 'nav.comments', icon: MessageSquare },
+  { id: 'messages', labelKey: 'nav.messages', icon: Mail },
+  { id: 'mentions', labelKey: 'nav.mentions', icon: AtSign },
 ];
 
 const channels = [
@@ -21,6 +22,7 @@ const channels = [
 ];
 
 export function Sidebar({ activeView, onViewChange, showSettings = true, myAssignedCount = 0 }: SidebarProps) {
+  const { t } = useTranslation();
   const [channelsExpanded, setChannelsExpanded] = useState(true);
 
   return (
@@ -46,7 +48,7 @@ export function Sidebar({ activeView, onViewChange, showSettings = true, myAssig
               }`}
             >
               <LayoutDashboard size={18} />
-              <span>Dashboard</span>
+              <span>{t('nav.dashboard')}</span>
             </button>
           </li>
         </ul>
@@ -62,7 +64,7 @@ export function Sidebar({ activeView, onViewChange, showSettings = true, myAssig
             }`}
           >
             <MessageSquare size={18} />
-            <span>Alle Interaktionen</span>
+            <span>{t('nav.allInteractions')}</span>
           </button>
 
           {/* Channel submenu */}
@@ -72,7 +74,7 @@ export function Sidebar({ activeView, onViewChange, showSettings = true, myAssig
               className="flex items-center gap-2 text-gray-400 text-xs py-1 px-2 hover:text-gray-300 transition-colors"
             >
               {channelsExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-              <span>Kanäle</span>
+              <span>{t('nav.channels')}</span>
             </button>
 
             {channelsExpanded && (
@@ -93,7 +95,7 @@ export function Sidebar({ activeView, onViewChange, showSettings = true, myAssig
                       <span>{channel.icon}</span>
                       <span>{channel.label}</span>
                       {!channel.active && (
-                        <span className="text-[10px] text-gray-600 ml-auto">Bald</span>
+                        <span className="text-[10px] text-gray-600 ml-auto">{t('common.soon')}</span>
                       )}
                     </button>
                   </li>
@@ -105,7 +107,7 @@ export function Sidebar({ activeView, onViewChange, showSettings = true, myAssig
 
         {/* Interaction types */}
         <div className="mb-4">
-          <p className="text-xs text-gray-500 px-2 mb-2 uppercase tracking-wide">Nach Typ</p>
+          <p className="text-xs text-gray-500 px-2 mb-2 uppercase tracking-wide">{t('nav.byType')}</p>
           <ul className="space-y-1">
             {interactionTypes.map((item) => (
               <li key={item.id}>
@@ -118,7 +120,7 @@ export function Sidebar({ activeView, onViewChange, showSettings = true, myAssig
                   }`}
                 >
                   <item.icon size={18} />
-                  <span>{item.label}</span>
+                  <span>{t(item.labelKey)}</span>
                 </button>
               </li>
             ))}
@@ -136,7 +138,7 @@ export function Sidebar({ activeView, onViewChange, showSettings = true, myAssig
             }`}
           >
             <UserCheck size={18} />
-            <span className="flex-1 text-left">Mir zugewiesen</span>
+            <span className="flex-1 text-left">{t('nav.myAssigned')}</span>
             <span className={`min-w-[20px] h-5 flex items-center justify-center px-1.5 text-xs font-medium rounded-full ${
               activeView === 'my-assigned'
                 ? 'bg-white/20 text-white'
@@ -160,7 +162,7 @@ export function Sidebar({ activeView, onViewChange, showSettings = true, myAssig
             }`}
           >
             <Archive size={18} />
-            <span>Archiv</span>
+            <span>{t('nav.archive')}</span>
           </button>
         </div>
       </nav>
@@ -176,7 +178,7 @@ export function Sidebar({ activeView, onViewChange, showSettings = true, myAssig
             }`}
           >
             <Settings size={18} />
-            <span>Einstellungen</span>
+            <span>{t('nav.settings')}</span>
           </button>
         </div>
       )}

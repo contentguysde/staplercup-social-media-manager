@@ -518,4 +518,26 @@ export const interactionsApi = {
   },
 };
 
+// Auth API
+export interface UserPublic {
+  id: number;
+  email: string;
+  name: string;
+  role: 'admin' | 'manager' | 'viewer';
+  language: 'de' | 'en';
+  email_verified: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export const authApi = {
+  updateLanguage: async (language: 'de' | 'en'): Promise<{ user: UserPublic }> => {
+    const response = await api.put<APIResponse<{ user: UserPublic }>>('/auth/language', { language });
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to update language');
+    }
+    return { user: response.data.data!.user };
+  },
+};
+
 export default api;

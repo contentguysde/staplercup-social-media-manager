@@ -69,6 +69,19 @@ export async function initDatabase() {
       END IF;
     END $$;
   `;
+
+  // Add language column to users if it doesn't exist
+  await sql`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'language'
+      ) THEN
+        ALTER TABLE users ADD COLUMN language VARCHAR(10) DEFAULT 'de';
+      END IF;
+    END $$;
+  `;
 }
 
 // Interaction metadata types
@@ -122,7 +135,7 @@ export async function createUser(params: {
 
 export async function getAllUsers() {
   const result = await sql`
-    SELECT id, email, name, role, email_verified, created_at, updated_at
+    SELECT id, email, name, role, language, email_verified, created_at, updated_at
     FROM users ORDER BY created_at DESC
   `;
   return result.rows;
@@ -148,6 +161,13 @@ export async function updateUserRole(id: number, role: string) {
 export async function updateUserName(id: number, name: string) {
   const result = await sql`
     UPDATE users SET name = ${name}, updated_at = CURRENT_TIMESTAMP WHERE id = ${id}
+  `;
+  return (result.rowCount ?? 0) > 0;
+}
+
+export async function updateUserLanguage(id: number, language: string) {
+  const result = await sql`
+    UPDATE users SET language = ${language}, updated_at = CURRENT_TIMESTAMP WHERE id = ${id}
   `;
   return (result.rowCount ?? 0) > 0;
 }

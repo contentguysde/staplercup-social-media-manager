@@ -9,6 +9,7 @@ import {
   createVerificationToken,
   findVerificationToken,
   deleteVerificationToken,
+  updateUserLanguage,
 } from './_lib/db';
 import {
   hashPassword,
@@ -54,6 +55,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return handleMe(req, res);
       case 'registration-enabled':
         return handleRegistrationEnabled(req, res);
+      case 'language':
+        return handleUpdateLanguage(req, res);
       default:
         return res.status(404).json({ error: 'Endpoint nicht gefunden' });
     }
@@ -386,4 +389,41 @@ async function handleMe(req: VercelRequest, res: VercelResponse) {
 function handleRegistrationEnabled(_req: VercelRequest, res: VercelResponse) {
   const enabled = process.env.REGISTRATION_ENABLED !== 'false';
   return res.status(200).json({ enabled });
+}
+
+// PUT /api/auth/language
+async function handleUpdateLanguage(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'PUT') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  const token = getTokenFromHeader(req.headers.authorization as string);
+  if (!token) {
+    return res.status(401).json({ error: 'Nicht authentifiziert' });
+  }
+
+  let payload;
+  try {
+    payload = verifyAccessToken(token);
+  } catch {
+    return res.status(401).json({ error: 'Ungültiger Token' });
+  }
+
+  const { language } = req.body;
+
+  if (!language || !['de', 'en'].includes(language)) {
+    return res.status(400).json({ error: 'Ungültige Sprache' });
+  }
+
+  const updated = await updateUserLanguage(payload.userId, language);
+  if (!updated) {
+    return res.status(404).json({ error: 'Benutzer nicht gefunden' });
+  }
+
+  const user = await findUserById(payload.userId);
+  if (!user) {
+    return res.status(404).json({ error: 'Benutzer nicht gefunden' });
+  }
+
+  return res.status(200).json({ user: toPublicUser(user) });
 }

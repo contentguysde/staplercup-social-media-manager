@@ -1,5 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
-import type { User, LoginCredentials, AuthState } from '../types/auth';
+import { useTranslation } from 'react-i18next';
+import type { User, LoginCredentials, AuthState, Language } from '../types/auth';
+import { authApi } from '../services/api';
 
 // In production (Vercel), API is at same origin. In development, use localhost:3001
 const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:3001');
@@ -9,6 +11,7 @@ interface AuthContextType extends AuthState {
   logout: () => Promise<void>;
   refreshToken: () => Promise<string | null>;
   getAccessToken: () => string | null;
+  changeLanguage: (language: Language) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -16,6 +19,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 const ACCESS_TOKEN_KEY = 'accessToken';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const { i18n } = useTranslation();
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [accessToken, setAccessToken] = useState<string | null>(() => {
@@ -23,6 +27,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   const getAccessToken = useCallback(() => accessToken, [accessToken]);
+
+  // Sync i18n language when user changes
+  const syncLanguage = useCallback((language: Language) => {
+    if (i18n.language !== language) {
+      i18n.changeLanguage(language);
+    }
+  }, [i18n]);
+
+  // Change language (update in DB and sync i18n)
+  const changeLanguage = useCallback(async (language: Language) => {
+    try {
+      const { user: updatedUser } = await authApi.updateLanguage(language);
+      setUser(updatedUser as User);
+      syncLanguage(language);
+    } catch (error) {
+      console.error('Failed to change language:', error);
+      throw error;
+    }
+  }, [syncLanguage]);
 
   const saveAccessToken = useCallback((token: string | null) => {
     setAccessToken(token);
@@ -47,6 +70,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await response.json();
       saveAccessToken(data.accessToken);
       setUser(data.user);
+      // Sync language from user preferences
+      if (data.user?.language) {
+        i18n.changeLanguage(data.user.language);
+      }
       return data.accessToken;
     } catch {
       saveAccessToken(null);
@@ -73,7 +100,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const data = await response.json();
     saveAccessToken(data.accessToken);
     setUser(data.user);
-  }, [saveAccessToken]);
+    // Sync language from user preferences
+    if (data.user?.language) {
+      syncLanguage(data.user.language);
+    }
+  }, [saveAccessToken, syncLanguage]);
 
   const logout = useCallback(async () => {
     try {
@@ -115,6 +146,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (response.ok) {
           const data = await response.json();
           setUser(data.user);
+          // Sync language from user preferences
+          if (data.user?.language) {
+            i18n.changeLanguage(data.user.language);
+          }
         } else if (response.status === 401) {
           // Token expired, try refresh
           const newToken = await refreshToken();
@@ -143,6 +178,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     logout,
     refreshToken,
     getAccessToken,
+    changeLanguage,
   };
 
   return (

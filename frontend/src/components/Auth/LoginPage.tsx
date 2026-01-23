@@ -1,4 +1,5 @@
 import { useState, useEffect, type FormEvent } from 'react';
+import { useTranslation, Trans } from 'react-i18next';
 import { LogIn, AlertCircle, Loader2, UserPlus, CheckCircle, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { authApi } from '../../services/authApi';
@@ -6,6 +7,7 @@ import { authApi } from '../../services/authApi';
 type View = 'login' | 'register' | 'register-success';
 
 export function LoginPage() {
+  const { t } = useTranslation();
   const { login } = useAuth();
   const [view, setView] = useState<View>('login');
   const [registrationEnabled, setRegistrationEnabled] = useState(false);
@@ -37,7 +39,7 @@ export function LoginPage() {
     try {
       await login({ email, password });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Anmeldung fehlgeschlagen');
+      setError(err instanceof Error ? err.message : t('auth.loginFailed'));
     } finally {
       setIsLoading(false);
     }
@@ -49,13 +51,13 @@ export function LoginPage() {
 
     // Validate passwords match
     if (registerPassword !== registerPasswordConfirm) {
-      setRegisterError('Die Passwörter stimmen nicht überein');
+      setRegisterError(t('auth.passwordsNotMatch'));
       return;
     }
 
     // Validate password length
     if (registerPassword.length < 8) {
-      setRegisterError('Das Passwort muss mindestens 8 Zeichen lang sein');
+      setRegisterError(t('auth.passwordMinLength'));
       return;
     }
 
@@ -65,7 +67,7 @@ export function LoginPage() {
       await authApi.registerPublic(registerEmail, registerPassword, registerName);
       setView('register-success');
     } catch (err) {
-      setRegisterError(err instanceof Error ? err.message : 'Registrierung fehlgeschlagen');
+      setRegisterError(err instanceof Error ? err.message : t('auth.registrationFailed'));
     } finally {
       setIsRegistering(false);
     }
@@ -112,9 +114,9 @@ export function LoginPage() {
             </div>
             <h1 className="text-2xl font-bold text-gray-900">StaplerCup Social</h1>
             <p className="text-gray-500 mt-2">
-              {view === 'login' && 'Melde dich an, um fortzufahren'}
-              {view === 'register' && 'Erstelle ein neues Konto'}
-              {view === 'register-success' && 'Registrierung erfolgreich!'}
+              {view === 'login' && t('auth.loginSubtitle')}
+              {view === 'register' && t('auth.registerSubtitle')}
+              {view === 'register-success' && t('auth.registrationSuccess')}
             </p>
           </div>
 
@@ -130,7 +132,7 @@ export function LoginPage() {
 
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                  E-Mail
+                  {t('auth.email')}
                 </label>
                 <input
                   id="email"
@@ -140,13 +142,13 @@ export function LoginPage() {
                   required
                   autoComplete="email"
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                  placeholder="name@beispiel.de"
+                  placeholder={t('auth.emailPlaceholder')}
                 />
               </div>
 
               <div>
                 <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-                  Passwort
+                  {t('auth.password')}
                 </label>
                 <input
                   id="password"
@@ -156,7 +158,7 @@ export function LoginPage() {
                   required
                   autoComplete="current-password"
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                  placeholder="••••••••"
+                  placeholder={t('auth.passwordPlaceholder')}
                 />
               </div>
 
@@ -168,12 +170,12 @@ export function LoginPage() {
                 {isLoading ? (
                   <>
                     <Loader2 size={18} className="animate-spin" />
-                    Anmeldung...
+                    {t('auth.loggingIn')}
                   </>
                 ) : (
                   <>
                     <LogIn size={18} />
-                    Anmelden
+                    {t('auth.login')}
                   </>
                 )}
               </button>
@@ -185,7 +187,7 @@ export function LoginPage() {
                     onClick={switchToRegister}
                     className="text-sm text-blue-600 hover:text-blue-700 hover:underline"
                   >
-                    Noch kein Konto? Jetzt registrieren
+                    {t('auth.noAccount')}
                   </button>
                 </div>
               )}
@@ -204,7 +206,7 @@ export function LoginPage() {
 
               <div>
                 <label htmlFor="register-name" className="block text-sm font-medium text-gray-700 mb-1">
-                  Name
+                  {t('auth.name')}
                 </label>
                 <input
                   id="register-name"
@@ -214,13 +216,13 @@ export function LoginPage() {
                   required
                   autoComplete="name"
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                  placeholder="Max Mustermann"
+                  placeholder={t('auth.namePlaceholder')}
                 />
               </div>
 
               <div>
                 <label htmlFor="register-email" className="block text-sm font-medium text-gray-700 mb-1">
-                  E-Mail
+                  {t('auth.email')}
                 </label>
                 <input
                   id="register-email"
@@ -230,13 +232,13 @@ export function LoginPage() {
                   required
                   autoComplete="email"
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                  placeholder="name@beispiel.de"
+                  placeholder={t('auth.emailPlaceholder')}
                 />
               </div>
 
               <div>
                 <label htmlFor="register-password" className="block text-sm font-medium text-gray-700 mb-1">
-                  Passwort
+                  {t('auth.password')}
                 </label>
                 <input
                   id="register-password"
@@ -247,13 +249,13 @@ export function LoginPage() {
                   minLength={8}
                   autoComplete="new-password"
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                  placeholder="Mindestens 8 Zeichen"
+                  placeholder={t('auth.passwordMinPlaceholder')}
                 />
               </div>
 
               <div>
                 <label htmlFor="register-password-confirm" className="block text-sm font-medium text-gray-700 mb-1">
-                  Passwort bestätigen
+                  {t('auth.confirmPassword')}
                 </label>
                 <input
                   id="register-password-confirm"
@@ -264,7 +266,7 @@ export function LoginPage() {
                   minLength={8}
                   autoComplete="new-password"
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                  placeholder="Passwort wiederholen"
+                  placeholder={t('auth.repeatPassword')}
                 />
               </div>
 
@@ -276,12 +278,12 @@ export function LoginPage() {
                 {isRegistering ? (
                   <>
                     <Loader2 size={18} className="animate-spin" />
-                    Registrierung...
+                    {t('auth.registering')}
                   </>
                 ) : (
                   <>
                     <UserPlus size={18} />
-                    Registrieren
+                    {t('auth.register')}
                   </>
                 )}
               </button>
@@ -293,7 +295,7 @@ export function LoginPage() {
                   className="text-sm text-gray-600 hover:text-gray-700 flex items-center justify-center gap-1 mx-auto"
                 >
                   <ArrowLeft size={14} />
-                  Zurück zur Anmeldung
+                  {t('auth.backToLogin')}
                 </button>
               </div>
             </form>
@@ -308,17 +310,18 @@ export function LoginPage() {
 
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Fast geschafft!
+                  {t('auth.almostDone')}
                 </h3>
                 <p className="text-gray-600">
-                  Wir haben dir eine E-Mail an <strong>{registerEmail}</strong> geschickt.
-                  Bitte klicke auf den Link in der E-Mail, um dein Konto zu aktivieren.
+                  <Trans i18nKey="auth.emailSent" values={{ email: registerEmail }}>
+                    We have sent an email to <strong>{registerEmail}</strong>. Please click the link in the email to activate your account.
+                  </Trans>
                 </p>
               </div>
 
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left">
                 <p className="text-sm text-blue-700">
-                  <strong>Tipp:</strong> Überprüfe auch deinen Spam-Ordner, falls du die E-Mail nicht findest.
+                  <strong>{t('auth.tip')}:</strong> {t('auth.checkSpam')}
                 </p>
               </div>
 
@@ -328,7 +331,7 @@ export function LoginPage() {
                 className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors"
               >
                 <ArrowLeft size={18} />
-                Zurück zur Anmeldung
+                {t('auth.backToLogin')}
               </button>
             </div>
           )}

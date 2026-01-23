@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { AlertTriangle, Settings as SettingsIcon, X, Loader2, MessageSquare } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LoginPage } from './components/Auth/LoginPage';
@@ -13,16 +14,17 @@ import { Settings } from './components/Settings/Settings';
 import { useInstagram } from './hooks/useInstagram';
 import type { Interaction, InteractionType, Platform } from './types';
 
-const viewTitles: Record<string, string> = {
-  dashboard: 'Dashboard',
-  all: 'Alle Interaktionen',
-  comments: 'Kommentare',
-  messages: 'Nachrichten',
-  mentions: 'Erwähnungen',
-  'my-assigned': 'Mir zugewiesen',
-  archive: 'Archiv',
-  settings: 'Einstellungen',
-  // Channel views
+// View title keys for translation
+const viewTitleKeys: Record<string, string> = {
+  dashboard: 'nav.dashboard',
+  all: 'nav.allInteractions',
+  comments: 'nav.comments',
+  messages: 'nav.messages',
+  mentions: 'nav.mentions',
+  'my-assigned': 'nav.myAssigned',
+  archive: 'nav.archive',
+  settings: 'nav.settings',
+  // Channel views (not translated, keep as-is)
   instagram: 'Instagram',
   facebook: 'Facebook',
   tiktok: 'TikTok',
@@ -44,10 +46,20 @@ const platformFilters: Record<string, Platform | undefined> = {
 };
 
 function MainApp() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [activeView, setActiveView] = useState('dashboard');
   const [selectedInteraction, setSelectedInteraction] = useState<Interaction | null>(null);
   const [errorDismissed, setErrorDismissed] = useState(false);
+
+  // Get translated title for current view
+  const getViewTitle = (view: string): string => {
+    const key = viewTitleKeys[view];
+    if (!key) return 'StaplerCup Social';
+    // Channel names don't need translation
+    if (['instagram', 'facebook', 'tiktok'].includes(view)) return key;
+    return t(key);
+  };
 
   const {
     interactions,
@@ -213,7 +225,7 @@ function MainApp() {
 
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header
-          title={viewTitles[activeView] || 'StaplerCup Social'}
+          title={getViewTitle(activeView)}
           onRefresh={isInboxView || isArchiveView || isMyAssignedView ? refresh : undefined}
           loading={loading}
         />
@@ -234,17 +246,17 @@ function MainApp() {
                 <div className="flex-1">
                   <p className={`font-medium ${connectionStatus?.errorType === 'token_expired' ? 'text-amber-800' : 'text-red-800'}`}>
                     {connectionStatus?.errorType === 'token_expired'
-                      ? 'Instagram-Verbindung abgelaufen'
+                      ? t('errors.connectionExpired')
                       : connectionStatus?.errorType === 'token_invalid'
-                      ? 'Instagram nicht verbunden'
-                      : 'Verbindungsproblem'}
+                      ? t('errors.notConnected')
+                      : t('errors.connectionProblem')}
                   </p>
                   <p className={`text-sm mt-1 ${connectionStatus?.errorType === 'token_expired' ? 'text-amber-700' : 'text-red-700'}`}>
                     {error}
                   </p>
                   {connectionStatus?.usingMockData && (
                     <p className="text-sm mt-2 text-gray-600">
-                      Es werden Demo-Daten angezeigt.
+                      {t('errors.usingMockData')}
                     </p>
                   )}
                   {canAccessSettings && (
@@ -257,14 +269,14 @@ function MainApp() {
                       }`}
                     >
                       <SettingsIcon size={14} />
-                      Zu den Einstellungen
+                      {t('errors.goToSettings')}
                     </button>
                   )}
                 </div>
                 <button
                   onClick={() => setErrorDismissed(true)}
                   className="text-gray-400 hover:text-gray-600 transition-colors"
-                  title="Schließen"
+                  title={t('common.close')}
                 >
                   <X size={18} />
                 </button>
@@ -279,8 +291,8 @@ function MainApp() {
                 <MessageSquare size={18} className="text-blue-500 flex-shrink-0" />
                 <div className="flex-1">
                   <p className="text-sm text-blue-800">
-                    <span className="font-medium">Direktnachrichten nicht verfügbar:</span>{' '}
-                    Die Berechtigung <code className="bg-blue-100 px-1 py-0.5 rounded text-xs">instagram_business_manage_messages</code> wird noch von Meta geprüft.
+                    <span className="font-medium">{t('errors.dmNotAvailable')}:</span>{' '}
+                    {t('errors.dmPermissionMissing')}
                   </p>
                 </div>
               </div>
@@ -329,8 +341,8 @@ function MainApp() {
                 ) : (
                   <div className="h-full flex items-center justify-center text-gray-400">
                     <div className="text-center">
-                      <p className="text-lg mb-2">Wähle eine Konversation</p>
-                      <p className="text-sm">Klicke auf eine Interaktion links, um sie anzuzeigen</p>
+                      <p className="text-lg mb-2">{t('inbox.selectConversation')}</p>
+                      <p className="text-sm">{t('inbox.selectHint')}</p>
                     </div>
                   </div>
                 )}
@@ -368,8 +380,8 @@ function MainApp() {
                 ) : (
                   <div className="h-full flex items-center justify-center text-gray-400">
                     <div className="text-center">
-                      <p className="text-lg mb-2">Archivierte Interaktionen</p>
-                      <p className="text-sm">Klicke auf eine Interaktion links, um sie anzuzeigen</p>
+                      <p className="text-lg mb-2">{t('inbox.archivedInteractions')}</p>
+                      <p className="text-sm">{t('inbox.selectHint')}</p>
                     </div>
                   </div>
                 )}
@@ -406,8 +418,8 @@ function MainApp() {
                 ) : (
                   <div className="h-full flex items-center justify-center text-gray-400">
                     <div className="text-center">
-                      <p className="text-lg mb-2">Mir zugewiesene Interaktionen</p>
-                      <p className="text-sm">Hier erscheinen Interaktionen, die dir zugewiesen wurden</p>
+                      <p className="text-lg mb-2">{t('inbox.myAssignedTitle')}</p>
+                      <p className="text-sm">{t('inbox.myAssignedHint')}</p>
                     </div>
                   </div>
                 )}
@@ -421,6 +433,7 @@ function MainApp() {
 }
 
 function AppContent() {
+  const { t } = useTranslation();
   const { isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
@@ -428,7 +441,7 @@ function AppContent() {
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
         <div className="flex items-center gap-3 text-gray-500">
           <Loader2 size={24} className="animate-spin" />
-          <span>Laden...</span>
+          <span>{t('common.loading')}</span>
         </div>
       </div>
     );

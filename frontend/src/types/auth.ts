@@ -1,10 +1,12 @@
 export type Role = 'admin' | 'manager' | 'viewer';
+export type Language = 'de' | 'en';
 
 export interface User {
   id: number;
   email: string;
   name: string;
   role: Role;
+  language: Language;
   created_at: string;
   updated_at: string;
 }
