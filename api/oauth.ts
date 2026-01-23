@@ -207,6 +207,13 @@ async function handleCallback(req: VercelRequest, res: VercelResponse) {
       )
     `;
 
+    // Add page_id column if it doesn't exist (for existing tables)
+    try {
+      await sql`ALTER TABLE instagram_credentials ADD COLUMN IF NOT EXISTS page_id VARCHAR(255)`;
+    } catch {
+      // Column might already exist, ignore error
+    }
+
     // Delete old credentials and insert new ones
     await sql`DELETE FROM instagram_credentials`;
     await sql`
