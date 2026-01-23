@@ -104,6 +104,7 @@ export interface ConnectionStatus {
   usingMockData: boolean;
   error?: string;
   errorType?: 'token_expired' | 'token_invalid' | 'network_error' | 'unknown';
+  dmPermissionMissing?: boolean;
 }
 
 // DM Types
@@ -146,12 +147,15 @@ export const instagramApi = {
     return response.data.data!;
   },
 
-  getInteractions: async (): Promise<Interaction[]> => {
-    const response = await api.get<APIResponse<Interaction[]>>('/instagram/interactions');
+  getInteractions: async (): Promise<{ interactions: Interaction[]; dmPermissionMissing: boolean }> => {
+    const response = await api.get<APIResponse<Interaction[]> & { dmPermissionMissing?: boolean }>('/instagram/interactions');
     if (!response.data.success) {
       throw new Error(response.data.error || 'Failed to fetch interactions');
     }
-    return response.data.data || [];
+    return {
+      interactions: response.data.data || [],
+      dmPermissionMissing: response.data.dmPermissionMissing || false,
+    };
   },
 
   getComments: async (): Promise<Interaction[]> => {

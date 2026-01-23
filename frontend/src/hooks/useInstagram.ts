@@ -18,6 +18,7 @@ export function useInstagram(options: UseInstagramOptions = {}) {
   const [categorizing, setCategorizing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus | null>(null);
+  const [dmPermissionMissing, setDmPermissionMissing] = useState(false);
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
   const [archivedIds, setArchivedIds] = useState<Set<string>>(new Set());
   const [myAssignedIds, setMyAssignedIds] = useState<Set<string>>(new Set());
@@ -84,10 +85,13 @@ export function useInstagram(options: UseInstagramOptions = {}) {
       setError(null);
 
       // Fetch interactions and metadata in parallel
-      const [data, metadata] = await Promise.all([
+      const [interactionsResult, metadata] = await Promise.all([
         instagramApi.getInteractions(),
         fetchMetadata(),
       ]);
+
+      // Track DM permission status
+      setDmPermissionMissing(interactionsResult.dmPermissionMissing);
 
       // Fetch connection status to check for API errors
       try {
@@ -103,7 +107,7 @@ export function useInstagram(options: UseInstagramOptions = {}) {
       }
 
       // Apply read status from metadata and filter by archive status
-      let processedData = data.map((interaction) => ({
+      let processedData = interactionsResult.interactions.map((interaction: Interaction) => ({
         ...interaction,
         status: metadata.read.has(interaction.id) ? 'read' as const : interaction.status,
       }));
@@ -289,6 +293,7 @@ export function useInstagram(options: UseInstagramOptions = {}) {
     categorizing,
     error,
     connectionStatus,
+    dmPermissionMissing,
     readIds,
     archivedIds,
     myAssignedIds,

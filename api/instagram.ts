@@ -285,6 +285,7 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
 
   try {
     const interactions: any[] = [];
+    let dmPermissionMissing = false;
 
     // Configure axios with timeout to prevent Vercel function timeout
     const apiConfig = { timeout: 8000 }; // 8 seconds max per request
@@ -439,7 +440,21 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
         }
       }
     } else if (conversationsResult.status === 'rejected') {
-      console.log('Could not fetch DMs:', (conversationsResult.reason as any)?.response?.data?.error?.message || conversationsResult.reason);
+      const dmError = (conversationsResult.reason as any)?.response?.data?.error;
+      const dmErrorMessage = dmError?.message || conversationsResult.reason;
+      const dmErrorCode = dmError?.code;
+
+      // Check if this is a permission error (code 10 = permission denied, code 200 = permission error)
+      const isPermissionError = dmErrorCode === 10 || dmErrorCode === 200 ||
+        dmErrorMessage?.toLowerCase().includes('permission') ||
+        dmErrorMessage?.toLowerCase().includes('does not have');
+
+      if (isPermissionError) {
+        console.log('DM permission missing - instagram_business_manage_messages required');
+        dmPermissionMissing = true;
+      } else {
+        console.log('Could not fetch DMs:', dmErrorMessage);
+      }
     }
 
     // Process webhook comments (real-time notifications)
@@ -469,6 +484,7 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
       success: true,
       data: interactions,
       usingMockData: false,
+      dmPermissionMissing,
     });
 
   } catch (error: any) {

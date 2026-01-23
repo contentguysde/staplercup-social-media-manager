@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { AlertTriangle, Settings as SettingsIcon, X, Loader2 } from 'lucide-react';
+import { AlertTriangle, Settings as SettingsIcon, X, Loader2, MessageSquare } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LoginPage } from './components/Auth/LoginPage';
 import { VerifyEmailPage } from './components/Auth/VerifyEmailPage';
@@ -55,6 +55,7 @@ function MainApp() {
     loading,
     error,
     connectionStatus,
+    dmPermissionMissing,
     refresh,
     replyToComment,
     sendMessage,
@@ -267,6 +268,21 @@ function MainApp() {
                 >
                   <X size={18} />
                 </button>
+              </div>
+            </div>
+          )}
+
+          {/* DM Permission Missing Banner */}
+          {dmPermissionMissing && !connectionStatus?.usingMockData && activeView === 'messages' && (
+            <div className="border-b px-6 py-3 flex-shrink-0 bg-blue-50 border-blue-200">
+              <div className="flex items-center gap-3">
+                <MessageSquare size={18} className="text-blue-500 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm text-blue-800">
+                    <span className="font-medium">Direktnachrichten nicht verfügbar:</span>{' '}
+                    Die Berechtigung <code className="bg-blue-100 px-1 py-0.5 rounded text-xs">instagram_business_manage_messages</code> wird noch von Meta geprüft.
+                  </p>
+                </div>
               </div>
             </div>
           )}
