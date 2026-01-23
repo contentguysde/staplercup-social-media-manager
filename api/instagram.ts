@@ -189,13 +189,14 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
   try {
     const interactions: any[] = [];
 
-    // Step 1: Get recent media posts from Instagram Business Account
+    // Step 1: Get recent media posts with comments in a single request
     const mediaResponse = await axios.get(
       `https://graph.facebook.com/v18.0/${credentials.accountId}/media`,
       {
         params: {
-          fields: 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp',
-          limit: 25,
+          // Include comments directly in the media request to avoid multiple API calls
+          fields: 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,comments.limit(20){id,text,timestamp,from{id,username}}',
+          limit: 10, // Reduced from 25 to avoid timeout
           access_token: credentials.accessToken,
         },
       }
@@ -203,47 +204,31 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
 
     const posts = mediaResponse.data.data || [];
 
-    // Step 2: For each post, get comments
+    // Step 2: Process comments from the nested response
     for (const post of posts) {
-      try {
-        const commentsResponse = await axios.get(
-          `https://graph.facebook.com/v18.0/${post.id}/comments`,
-          {
-            params: {
-              fields: 'id,text,timestamp,from{id,username},like_count',
-              limit: 50,
-              access_token: credentials.accessToken,
-            },
-          }
-        );
+      const comments = post.comments?.data || [];
 
-        const comments = commentsResponse.data.data || [];
-
-        for (const comment of comments) {
-          interactions.push({
-            id: comment.id,
-            type: 'comment',
-            platform: 'instagram',
-            content: comment.text,
-            from: {
-              id: comment.from?.id || 'unknown',
-              username: comment.from?.username || 'Unbekannter Nutzer',
-              name: comment.from?.username || 'Unbekannter Nutzer',
-            },
-            timestamp: comment.timestamp,
-            read: false,
-            replied: false,
-            context: {
-              mediaId: post.id,
-              mediaUrl: post.media_url || post.thumbnail_url,
-              mediaCaption: post.caption || '',
-              mediaPermalink: post.permalink,
-            },
-          });
-        }
-      } catch (commentError: any) {
-        // Skip posts where we can't fetch comments (might not have permission)
-        console.log(`Could not fetch comments for post ${post.id}:`, commentError.response?.data?.error?.message);
+      for (const comment of comments) {
+        interactions.push({
+          id: comment.id,
+          type: 'comment',
+          platform: 'instagram',
+          content: comment.text,
+          from: {
+            id: comment.from?.id || 'unknown',
+            username: comment.from?.username || 'Unbekannter Nutzer',
+            name: comment.from?.username || 'Unbekannter Nutzer',
+          },
+          timestamp: comment.timestamp,
+          read: false,
+          replied: false,
+          context: {
+            mediaId: post.id,
+            mediaUrl: post.media_url || post.thumbnail_url,
+            mediaCaption: post.caption || '',
+            mediaPermalink: post.permalink,
+          },
+        });
       }
     }
 
