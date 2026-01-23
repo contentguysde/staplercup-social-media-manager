@@ -133,7 +133,7 @@ export function useInstagram(options: UseInstagramOptions = {}) {
   }, [fetchInteractions]);
 
   const sendMessage = useCallback(async (recipientId: string, message: string) => {
-    const result = await instagramApi.sendMessage(recipientId, message);
+    const result = await instagramApi.sendDirectMessage(recipientId, message);
     await fetchInteractions();
     return result;
   }, [fetchInteractions]);

@@ -106,6 +106,36 @@ export interface ConnectionStatus {
   errorType?: 'token_expired' | 'token_invalid' | 'network_error' | 'unknown';
 }
 
+// DM Types
+export interface DMParticipant {
+  id: string;
+  username: string;
+  name: string;
+}
+
+export interface DMLastMessage {
+  id: string;
+  content: string;
+  timestamp: string;
+  fromMe: boolean;
+}
+
+export interface DMConversation {
+  id: string;
+  participant: DMParticipant;
+  lastMessage: DMLastMessage | null;
+  updatedAt: string;
+}
+
+export interface DMMessage {
+  id: string;
+  content: string;
+  timestamp: string;
+  from: DMParticipant;
+  fromMe: boolean;
+  attachments: any[];
+}
+
 // Instagram API
 export const instagramApi = {
   getStatus: async (): Promise<ConnectionStatus> => {
@@ -150,16 +180,25 @@ export const instagramApi = {
     return response.data.data || [];
   },
 
-  getMessages: async (): Promise<Interaction[]> => {
-    const response = await api.get<APIResponse<Interaction[]>>('/instagram/messages');
+  // DM Conversations
+  getConversations: async (): Promise<DMConversation[]> => {
+    const response = await api.get<APIResponse<DMConversation[]>>('/instagram/conversations');
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to fetch conversations');
+    }
+    return response.data.data || [];
+  },
+
+  getConversationMessages: async (conversationId: string): Promise<DMMessage[]> => {
+    const response = await api.get<APIResponse<DMMessage[]>>(`/instagram/messages?conversationId=${conversationId}`);
     if (!response.data.success) {
       throw new Error(response.data.error || 'Failed to fetch messages');
     }
     return response.data.data || [];
   },
 
-  sendMessage: async (recipientId: string, message: string): Promise<{ id: string }> => {
-    const response = await api.post<APIResponse<{ id: string }>>('/instagram/messages', {
+  sendDirectMessage: async (recipientId: string, message: string): Promise<{ messageId: string; recipientId: string }> => {
+    const response = await api.post<APIResponse<{ messageId: string; recipientId: string }>>('/instagram/send-message', {
       recipientId,
       message,
     });
