@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { verifyAccessToken, getTokenFromHeader } from './_lib/auth';
 import { getInstagramCredentials } from './_lib/instagram-credentials';
+import { sql } from '@vercel/postgres';
 import axios from 'axios';
 
 // Mock data for development/demo
@@ -179,6 +180,96 @@ async function handleStatus(_req: VercelRequest, res: VercelResponse) {
   }
 }
 
+/**
+ * Fetch comments from webhook table (real-time notifications)
+ * These are comments that were pushed to us via Instagram webhooks
+ */
+async function getWebhookComments(credentials: { accountId: string; accessToken: string }): Promise<any[]> {
+  try {
+    // Check if table exists and fetch recent webhook comments
+    const result = await sql`
+      SELECT
+        comment_id,
+        media_id,
+        text,
+        from_id,
+        from_username,
+        timestamp,
+        raw_payload
+      FROM webhook_comments
+      WHERE event_type = 'comment'
+        AND text IS NOT NULL
+      ORDER BY timestamp DESC
+      LIMIT 50
+    `;
+
+    if (result.rows.length === 0) {
+      return [];
+    }
+
+    // We need to fetch media details for each unique media_id to get context
+    const mediaIds = [...new Set(result.rows.map(r => r.media_id).filter(Boolean))];
+    const mediaCache: Record<string, any> = {};
+
+    // Fetch media details in batches (to avoid too many API calls)
+    for (const mediaId of mediaIds.slice(0, 10)) { // Limit to 10 unique media items
+      try {
+        const mediaResponse = await axios.get(
+          `https://graph.facebook.com/v18.0/${mediaId}`,
+          {
+            params: {
+              fields: 'id,caption,media_url,thumbnail_url,permalink,media_type,media_product_type',
+              access_token: credentials.accessToken,
+            },
+            timeout: 3000,
+          }
+        );
+        mediaCache[mediaId] = mediaResponse.data;
+      } catch (err) {
+        console.log(`Could not fetch media ${mediaId}:`, err);
+      }
+    }
+
+    // Transform webhook comments to interaction format
+    return result.rows.map(row => {
+      const media = mediaCache[row.media_id] || {};
+      return {
+        id: row.comment_id,
+        type: 'comment',
+        platform: 'instagram',
+        content: row.text,
+        from: {
+          id: row.from_id || 'unknown',
+          username: row.from_username || 'Unbekannter Nutzer',
+          name: row.from_username || 'Unbekannter Nutzer',
+        },
+        timestamp: row.timestamp,
+        read: false,
+        replied: false,
+        context: {
+          mediaId: row.media_id,
+          mediaUrl: media.media_type === 'VIDEO'
+            ? (media.thumbnail_url || media.media_url)
+            : (media.media_url || media.thumbnail_url),
+          mediaCaption: media.caption || '',
+          mediaPermalink: media.permalink || '',
+          mediaType: media.media_type,
+          mediaProductType: media.media_product_type,
+        },
+        source: 'webhook', // Mark as coming from webhook
+      };
+    });
+  } catch (error: any) {
+    // Table might not exist yet - that's fine
+    if (error.message?.includes('does not exist')) {
+      console.log('Webhook comments table does not exist yet');
+      return [];
+    }
+    console.error('Error fetching webhook comments:', error);
+    return [];
+  }
+}
+
 // GET /api/instagram/interactions
 async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
   const credentials = await getInstagramCredentials();
@@ -199,19 +290,17 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
     const apiConfig = { timeout: 8000 }; // 8 seconds max per request
 
     // Run all API calls in parallel with Promise.allSettled to handle failures gracefully
-    const [mediaResult, tagsResult, conversationsResult] = await Promise.allSettled([
-      // Step 1: Get recent media posts and reels with comments
-      // Use reverse_chronological order to get newest comments first
+    const [mediaResult, tagsResult, conversationsResult, webhookResult] = await Promise.allSettled([
+      // Step 1: Get recent media posts and reels with comments (from polling)
       axios.get(
         `https://graph.facebook.com/v18.0/${credentials.accountId}/media`,
         {
           ...apiConfig,
           params: {
             // Include media_type and media_product_type to get both posts and reels
-            // media_product_type: FEED (regular posts), REELS, STORY
             // Order comments by reverse_chronological to get newest first
-            fields: 'id,caption,media_url,thumbnail_url,permalink,timestamp,media_type,media_product_type,comments.limit(25).order(reverse_chronological){id,text,timestamp,from{id,username}}',
-            limit: 15, // Fetch more posts to capture recent comments across posts
+            fields: 'id,caption,media_url,thumbnail_url,permalink,timestamp,media_type,media_product_type,comments.limit(15).order(reverse_chronological){id,text,timestamp,from{id,username}}',
+            limit: 20, // Fetch 20 posts
             access_token: credentials.accessToken,
           },
         }
@@ -243,6 +332,8 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
             }
           )
         : Promise.resolve({ data: { data: [] } }),
+      // Step 4: Get webhook comments (real-time notifications)
+      getWebhookComments(credentials),
     ]);
 
     // Process media/comments
@@ -349,6 +440,26 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
       }
     } else if (conversationsResult.status === 'rejected') {
       console.log('Could not fetch DMs:', (conversationsResult.reason as any)?.response?.data?.error?.message || conversationsResult.reason);
+    }
+
+    // Process webhook comments (real-time notifications)
+    // These may include comments on older posts that weren't fetched via polling
+    if (webhookResult.status === 'fulfilled') {
+      const webhookComments = webhookResult.value || [];
+      console.log(`Found ${webhookComments.length} webhook comments`);
+
+      // Create a Set of existing comment IDs for deduplication
+      const existingIds = new Set(interactions.map(i => i.id));
+
+      // Add webhook comments that aren't already in the list
+      for (const comment of webhookComments) {
+        if (!existingIds.has(comment.id)) {
+          interactions.push(comment);
+          existingIds.add(comment.id);
+        }
+      }
+    } else {
+      console.log('Could not fetch webhook comments:', webhookResult.reason);
     }
 
     // Sort by timestamp (newest first)
