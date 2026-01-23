@@ -264,7 +264,11 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
             replied: false,
             context: {
               mediaId: post.id,
-              mediaUrl: post.media_url || post.thumbnail_url,
+              // For videos/reels, use thumbnail_url as the preview image
+              // For images, use media_url
+              mediaUrl: post.media_type === 'VIDEO'
+                ? (post.thumbnail_url || post.media_url)
+                : (post.media_url || post.thumbnail_url),
               mediaCaption: post.caption || '',
               mediaPermalink: post.permalink,
               mediaType: post.media_type, // IMAGE, VIDEO, CAROUSEL_ALBUM
