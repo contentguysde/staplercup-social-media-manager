@@ -1,4 +1,5 @@
 import { MessageSquare, Mail, AtSign, TrendingUp } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { Interaction } from '../../types';
 
 interface DashboardProps {
@@ -6,6 +7,7 @@ interface DashboardProps {
 }
 
 export function Dashboard({ interactions }: DashboardProps) {
+  const { t, i18n } = useTranslation();
   const comments = interactions.filter((i) => i.type === 'comment');
   const messages = interactions.filter((i) => i.type === 'dm');
   const mentions = interactions.filter((i) => i.type === 'mention');
@@ -13,25 +15,25 @@ export function Dashboard({ interactions }: DashboardProps) {
 
   const stats = [
     {
-      label: 'Gesamt Interaktionen',
+      label: t('dashboard.totalInteractions'),
       value: interactions.length,
       icon: TrendingUp,
       color: 'bg-blue-500',
     },
     {
-      label: 'Kommentare',
+      label: t('dashboard.comments'),
       value: comments.length,
       icon: MessageSquare,
       color: 'bg-purple-500',
     },
     {
-      label: 'Nachrichten',
+      label: t('dashboard.messages'),
       value: messages.length,
       icon: Mail,
       color: 'bg-green-500',
     },
     {
-      label: 'Erwähnungen',
+      label: t('dashboard.mentions'),
       value: mentions.length,
       icon: AtSign,
       color: 'bg-orange-500',
@@ -41,8 +43,8 @@ export function Dashboard({ interactions }: DashboardProps) {
   return (
     <div className="p-6">
       <div className="mb-8">
-        <h2 className="text-2xl font-bold text-gray-800 mb-2">Dashboard</h2>
-        <p className="text-gray-500">Übersicht deiner Instagram-Interaktionen</p>
+        <h2 className="text-2xl font-bold text-gray-800 mb-2">{t('dashboard.title')}</h2>
+        <p className="text-gray-500">{t('dashboard.subtitle')}</p>
       </div>
 
       {/* Stats Grid */}
@@ -70,10 +72,12 @@ export function Dashboard({ interactions }: DashboardProps) {
             <span className="text-2xl">📬</span>
             <div>
               <p className="font-medium text-yellow-800">
-                {unread.length} ungelesene Interaktion{unread.length !== 1 ? 'en' : ''}
+                {unread.length === 1
+                  ? t('dashboard.unreadAlert', { count: unread.length })
+                  : t('dashboard.unreadAlertPlural', { count: unread.length })}
               </p>
               <p className="text-sm text-yellow-600">
-                Schau dir die neuen Nachrichten an und antworte mit AI-Unterstützung
+                {t('dashboard.unreadHint')}
               </p>
             </div>
           </div>
@@ -83,7 +87,7 @@ export function Dashboard({ interactions }: DashboardProps) {
       {/* Recent Activity */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100">
         <div className="p-4 border-b border-gray-100">
-          <h3 className="font-semibold text-gray-800">Letzte Aktivitäten</h3>
+          <h3 className="font-semibold text-gray-800">{t('dashboard.recentActivity')}</h3>
         </div>
         <div className="divide-y divide-gray-100">
           {interactions.slice(0, 5).map((interaction) => (
@@ -98,7 +102,7 @@ export function Dashboard({ interactions }: DashboardProps) {
                 <p className="text-sm text-gray-500 truncate">{interaction.content}</p>
               </div>
               <span className="text-xs text-gray-400">
-                {new Date(interaction.timestamp).toLocaleString('de-DE', {
+                {new Date(interaction.timestamp).toLocaleString(i18n.language === 'de' ? 'de-DE' : 'en-US', {
                   day: '2-digit',
                   month: '2-digit',
                   hour: '2-digit',
@@ -111,7 +115,7 @@ export function Dashboard({ interactions }: DashboardProps) {
           {interactions.length === 0 && (
             <div className="p-8 text-center text-gray-400">
               <MessageSquare size={48} className="mx-auto mb-4 opacity-50" />
-              <p>Noch keine Interaktionen vorhanden</p>
+              <p>{t('dashboard.noInteractions')}</p>
             </div>
           )}
         </div>
