@@ -289,48 +289,61 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
       console.log('Could not fetch mentions:', tagsError.response?.data?.error?.message);
     }
 
-    // Step 4: Try to get DM conversations
-    try {
-      const conversationsResponse = await axios.get(
-        `https://graph.facebook.com/v18.0/${credentials.accountId}/conversations`,
-        {
-          params: {
-            platform: 'instagram',
-            fields: 'id,participants,updated_time,messages.limit(1){id,message,from,created_time}',
-            limit: 25,
-            access_token: credentials.accessToken,
-          },
-        }
-      );
-
-      const conversations = conversationsResponse.data.data || [];
-
-      for (const conv of conversations) {
-        const participant = conv.participants?.data?.find((p: any) => p.id !== credentials.accountId);
-        const latestMessage = conv.messages?.data?.[0];
-
-        if (latestMessage && latestMessage.from?.id !== credentials.accountId) {
-          // Only add incoming messages (not our own replies)
-          interactions.push({
-            id: `dm_${conv.id}`,
-            type: 'dm',
-            platform: 'instagram',
-            content: latestMessage.message || '',
-            from: {
-              id: participant?.id || latestMessage.from?.id || 'unknown',
-              username: participant?.username || latestMessage.from?.username || 'Unbekannter Nutzer',
-              name: participant?.name || participant?.username || latestMessage.from?.name || 'Unbekannter Nutzer',
+    // Step 4: Try to get DM conversations (requires pageId)
+    if (credentials.pageId) {
+      try {
+        const conversationsResponse = await axios.get(
+          `https://graph.facebook.com/v18.0/${credentials.pageId}/conversations`,
+          {
+            params: {
+              platform: 'instagram',
+              fields: 'id,participants,updated_time,messages.limit(1){id,message,from,created_time}',
+              limit: 25,
+              access_token: credentials.accessToken,
             },
-            timestamp: latestMessage.created_time,
-            read: false,
-            replied: false,
-            conversationId: conv.id,
-          });
+          }
+        );
+
+        const conversations = conversationsResponse.data.data || [];
+
+        for (const conv of conversations) {
+          // Find the participant that is not our page/account
+          const participant = conv.participants?.data?.find(
+            (p: any) => p.id !== credentials.pageId && p.id !== credentials.accountId
+          );
+          const latestMessage = conv.messages?.data?.[0];
+
+          if (latestMessage) {
+            // Check if the last message is from someone else (not us)
+            const isFromOther =
+              latestMessage.from?.id !== credentials.pageId &&
+              latestMessage.from?.id !== credentials.accountId;
+
+            if (isFromOther) {
+              interactions.push({
+                id: `dm_${conv.id}`,
+                type: 'dm',
+                platform: 'instagram',
+                content: latestMessage.message || '',
+                from: {
+                  id: participant?.id || latestMessage.from?.id || 'unknown',
+                  username: participant?.username || latestMessage.from?.username || 'Unbekannter Nutzer',
+                  name: participant?.name || participant?.username || latestMessage.from?.name || 'Unbekannter Nutzer',
+                },
+                timestamp: latestMessage.created_time,
+                read: false,
+                replied: false,
+                conversationId: conv.id,
+              });
+            }
+          }
         }
+      } catch (dmError: any) {
+        // DM endpoint requires instagram_manage_messages permission
+        console.log('Could not fetch DMs:', dmError.response?.data?.error?.message);
       }
-    } catch (dmError: any) {
-      // DM endpoint requires instagram_manage_messages permission
-      console.log('Could not fetch DMs:', dmError.response?.data?.error?.message);
+    } else {
+      console.log('Could not fetch DMs: pageId not available');
     }
 
     // Sort by timestamp (newest first)
@@ -368,11 +381,20 @@ async function handleGetConversations(_req: VercelRequest, res: VercelResponse) 
     });
   }
 
+  if (!credentials.pageId) {
+    return res.status(200).json({
+      success: true,
+      data: [],
+      usingMockData: true,
+      error: 'Page ID nicht verfügbar - bitte Instagram neu verbinden',
+    });
+  }
+
   try {
-    // Get conversations from Instagram Business Account
+    // Get conversations from Facebook Page (for Instagram DMs)
     // Note: This requires instagram_manage_messages permission
     const conversationsResponse = await axios.get(
-      `https://graph.facebook.com/v18.0/${credentials.accountId}/conversations`,
+      `https://graph.facebook.com/v18.0/${credentials.pageId}/conversations`,
       {
         params: {
           platform: 'instagram',
@@ -387,7 +409,9 @@ async function handleGetConversations(_req: VercelRequest, res: VercelResponse) 
 
     // Transform conversations into our format
     const formattedConversations = conversations.map((conv: any) => {
-      const participant = conv.participants?.data?.find((p: any) => p.id !== credentials.accountId);
+      const participant = conv.participants?.data?.find(
+        (p: any) => p.id !== credentials.pageId && p.id !== credentials.accountId
+      );
       const latestMessage = conv.messages?.data?.[0];
 
       return {
@@ -401,7 +425,7 @@ async function handleGetConversations(_req: VercelRequest, res: VercelResponse) 
           id: latestMessage.id,
           content: latestMessage.message,
           timestamp: latestMessage.created_time,
-          fromMe: latestMessage.from?.id === credentials.accountId,
+          fromMe: latestMessage.from?.id === credentials.pageId || latestMessage.from?.id === credentials.accountId,
         } : null,
         updatedAt: conv.updated_time,
       };
@@ -469,7 +493,7 @@ async function handleGetMessages(req: VercelRequest, res: VercelResponse) {
         username: msg.from?.username || msg.from?.name || 'Unbekannter Nutzer',
         name: msg.from?.name || msg.from?.username || 'Unbekannter Nutzer',
       },
-      fromMe: msg.from?.id === credentials.accountId,
+      fromMe: msg.from?.id === credentials.pageId || msg.from?.id === credentials.accountId,
       attachments: msg.attachments?.data || [],
     }));
 
@@ -508,11 +532,18 @@ async function handleSendMessage(req: VercelRequest, res: VercelResponse) {
     });
   }
 
+  if (!credentials.pageId) {
+    return res.status(200).json({
+      success: false,
+      error: 'Page ID nicht verfügbar - bitte Instagram neu verbinden',
+    });
+  }
+
   try {
-    // Send message using the Instagram Messaging API
+    // Send message using the Facebook Page Messaging API (for Instagram DMs)
     // Note: This requires instagram_manage_messages permission
     const response = await axios.post(
-      `https://graph.facebook.com/v18.0/${credentials.accountId}/messages`,
+      `https://graph.facebook.com/v18.0/${credentials.pageId}/messages`,
       {
         recipient: { id: recipientId },
         message: { text: message },

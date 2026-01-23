@@ -3,6 +3,7 @@ import { sql } from '@vercel/postgres';
 export interface InstagramCredentials {
   accessToken: string;
   accountId: string;
+  pageId?: string;
   username?: string;
   source: 'oauth' | 'env';
 }
@@ -15,7 +16,7 @@ export async function getInstagramCredentials(): Promise<InstagramCredentials | 
   // First, try to get credentials from database (OAuth)
   try {
     const result = await sql`
-      SELECT access_token, page_access_token, instagram_account_id, instagram_username, expires_at
+      SELECT access_token, page_access_token, page_id, instagram_account_id, instagram_username, expires_at
       FROM instagram_credentials
       ORDER BY created_at DESC
       LIMIT 1
@@ -34,6 +35,7 @@ export async function getInstagramCredentials(): Promise<InstagramCredentials | 
         return {
           accessToken,
           accountId: creds.instagram_account_id,
+          pageId: creds.page_id,
           username: creds.instagram_username,
           source: 'oauth',
         };

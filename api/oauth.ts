@@ -14,10 +14,12 @@ const SCOPES = [
   'pages_show_list',                    // List user's Facebook Pages
   'pages_read_engagement',              // Read Page posts and engagement
   'pages_manage_metadata',              // Manage Page metadata
+  'pages_messaging',                    // Send/receive messages via Pages (required for Instagram DMs)
   'instagram_basic',                    // Basic Instagram account info
   'instagram_content_publish',          // Publish to Instagram (for admins without review)
   'instagram_manage_comments',          // Read/manage comments (for admins without review)
   'instagram_manage_insights',          // Access insights
+  'instagram_manage_messages',          // Read/send Instagram DMs (requires App Review for production)
 ].join(',');
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -172,11 +174,31 @@ async function handleCallback(req: VercelRequest, res: VercelResponse) {
     // Step 5: Store the tokens in database
     const expiresAt = new Date(Date.now() + expiresIn * 1000);
 
+    // Find the page ID that has the Instagram account
+    let pageId = null;
+    for (const page of pages) {
+      try {
+        const igAccountResponse = await axios.get(`https://graph.facebook.com/v18.0/${page.id}`, {
+          params: {
+            fields: 'instagram_business_account{id}',
+            access_token: page.access_token,
+          },
+        });
+        if (igAccountResponse.data.instagram_business_account?.id === instagramAccountId) {
+          pageId = page.id;
+          break;
+        }
+      } catch {
+        // Skip pages that fail
+      }
+    }
+
     await sql`
       CREATE TABLE IF NOT EXISTS instagram_credentials (
         id SERIAL PRIMARY KEY,
         access_token TEXT NOT NULL,
         page_access_token TEXT,
+        page_id VARCHAR(255),
         instagram_account_id VARCHAR(255) NOT NULL,
         instagram_username VARCHAR(255),
         expires_at TIMESTAMP NOT NULL,
@@ -188,8 +210,8 @@ async function handleCallback(req: VercelRequest, res: VercelResponse) {
     // Delete old credentials and insert new ones
     await sql`DELETE FROM instagram_credentials`;
     await sql`
-      INSERT INTO instagram_credentials (access_token, page_access_token, instagram_account_id, instagram_username, expires_at)
-      VALUES (${longLivedToken}, ${pageAccessToken}, ${instagramAccountId}, ${instagramUsername}, ${expiresAt.toISOString()})
+      INSERT INTO instagram_credentials (access_token, page_access_token, page_id, instagram_account_id, instagram_username, expires_at)
+      VALUES (${longLivedToken}, ${pageAccessToken}, ${pageId}, ${instagramAccountId}, ${instagramUsername}, ${expiresAt.toISOString()})
     `;
 
     // Redirect back to settings with success
