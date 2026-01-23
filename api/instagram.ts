@@ -201,6 +201,7 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
     // Run all API calls in parallel with Promise.allSettled to handle failures gracefully
     const [mediaResult, tagsResult, conversationsResult] = await Promise.allSettled([
       // Step 1: Get recent media posts and reels with comments
+      // Use reverse_chronological order to get newest comments first
       axios.get(
         `https://graph.facebook.com/v18.0/${credentials.accountId}/media`,
         {
@@ -208,8 +209,9 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
           params: {
             // Include media_type and media_product_type to get both posts and reels
             // media_product_type: FEED (regular posts), REELS, STORY
-            fields: 'id,caption,media_url,thumbnail_url,permalink,timestamp,media_type,media_product_type,comments.limit(10){id,text,timestamp,from{id,username}}',
-            limit: 10, // Increased to include more reels
+            // Order comments by reverse_chronological to get newest first
+            fields: 'id,caption,media_url,thumbnail_url,permalink,timestamp,media_type,media_product_type,comments.limit(25).order(reverse_chronological){id,text,timestamp,from{id,username}}',
+            limit: 15, // Fetch more posts to capture recent comments across posts
             access_token: credentials.accessToken,
           },
         }
