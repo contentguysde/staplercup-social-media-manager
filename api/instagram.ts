@@ -19,6 +19,8 @@ const mockInteractions = [
       mediaUrl: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=400',
       mediaCaption: 'StaplerCup 2024 - Die besten Momente!',
       mediaPermalink: 'https://www.instagram.com/p/example1/',
+      mediaType: 'IMAGE',
+      mediaProductType: 'FEED',
     },
   },
   {
@@ -45,6 +47,8 @@ const mockInteractions = [
       mediaUrl: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=400',
       mediaCaption: 'StaplerCup Highlights',
       mediaPermalink: 'https://www.instagram.com/p/example3/',
+      mediaType: 'VIDEO',
+      mediaProductType: 'REELS',
     },
   },
   {
@@ -61,6 +65,8 @@ const mockInteractions = [
       mediaUrl: 'https://images.unsplash.com/photo-1553413077-190dd305871c?w=400',
       mediaCaption: 'Finale StaplerCup 2024',
       mediaPermalink: 'https://www.instagram.com/p/example2/',
+      mediaType: 'VIDEO',
+      mediaProductType: 'FEED',
     },
   },
 ];
@@ -194,25 +200,27 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
 
     // Run all API calls in parallel with Promise.allSettled to handle failures gracefully
     const [mediaResult, tagsResult, conversationsResult] = await Promise.allSettled([
-      // Step 1: Get recent media posts with comments
+      // Step 1: Get recent media posts and reels with comments
       axios.get(
         `https://graph.facebook.com/v18.0/${credentials.accountId}/media`,
         {
           ...apiConfig,
           params: {
-            fields: 'id,caption,media_url,thumbnail_url,permalink,timestamp,comments.limit(10){id,text,timestamp,from{id,username}}',
-            limit: 5, // Reduced to avoid timeout
+            // Include media_type and media_product_type to get both posts and reels
+            // media_product_type: FEED (regular posts), REELS, STORY
+            fields: 'id,caption,media_url,thumbnail_url,permalink,timestamp,media_type,media_product_type,comments.limit(10){id,text,timestamp,from{id,username}}',
+            limit: 10, // Increased to include more reels
             access_token: credentials.accessToken,
           },
         }
       ),
-      // Step 2: Get mentions (tagged media)
+      // Step 2: Get mentions (tagged media) - includes posts and reels
       axios.get(
         `https://graph.facebook.com/v18.0/${credentials.accountId}/tags`,
         {
           ...apiConfig,
           params: {
-            fields: 'id,caption,media_url,permalink,timestamp,username',
+            fields: 'id,caption,media_url,permalink,timestamp,username,media_type,media_product_type',
             limit: 10,
             access_token: credentials.accessToken,
           },
@@ -259,6 +267,8 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
               mediaUrl: post.media_url || post.thumbnail_url,
               mediaCaption: post.caption || '',
               mediaPermalink: post.permalink,
+              mediaType: post.media_type, // IMAGE, VIDEO, CAROUSEL_ALBUM
+              mediaProductType: post.media_product_type, // FEED, REELS, STORY
             },
           });
         }
@@ -289,6 +299,8 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
             mediaUrl: tag.media_url,
             mediaCaption: tag.caption || '',
             mediaPermalink: tag.permalink,
+            mediaType: tag.media_type,
+            mediaProductType: tag.media_product_type,
           },
         });
       }

@@ -43,6 +43,8 @@ export interface Interaction {
     mediaUrl?: string;
     mediaCaption?: string;
     mediaPermalink?: string;
+    mediaType?: 'IMAGE' | 'VIDEO' | 'CAROUSEL_ALBUM';
+    mediaProductType?: 'FEED' | 'REELS' | 'STORY';
     conversationId?: string;
     commentId?: string;
   };
