@@ -228,27 +228,35 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
     const interactions: any[] = [];
     let dmPermissionMissing = false;
 
-    // Configure axios with timeout to prevent Vercel function timeout
-    const apiConfig = { timeout: 8000 }; // 8 seconds max per request
+    // Configure axios with shorter timeout to prevent Vercel function timeout
+    const apiConfig = { timeout: 5000 }; // 5 seconds max per request
 
-    // Run all API calls in parallel with Promise.allSettled to handle failures gracefully
-    const [mediaResult, tagsResult, conversationsResult, webhookResult] = await Promise.allSettled([
-      // Step 1: Get recent media posts and reels with comments (from polling)
-      axios.get(
+    // Run API calls sequentially for debugging
+    console.log('Starting media fetch...');
+    let mediaResult: PromiseSettledResult<any>;
+    try {
+      const mediaResponse = await axios.get(
         `https://graph.facebook.com/v18.0/${credentials.accountId}/media`,
         {
           ...apiConfig,
           params: {
-            // Include media_type and media_product_type to get both posts and reels
-            // Order comments by reverse_chronological to get newest first
             fields: 'id,caption,media_url,thumbnail_url,permalink,timestamp,media_type,media_product_type,comments.limit(15).order(reverse_chronological){id,text,timestamp,from{id,username}}',
-            limit: 20, // Fetch 20 posts
+            limit: 20,
             access_token: credentials.accessToken,
           },
         }
-      ),
-      // Step 2: Get mentions (tagged media) - includes posts and reels
-      axios.get(
+      );
+      mediaResult = { status: 'fulfilled', value: mediaResponse };
+      console.log('Media fetch SUCCESS:', mediaResponse.data.data?.length || 0, 'posts');
+    } catch (err: any) {
+      mediaResult = { status: 'rejected', reason: err };
+      console.log('Media fetch FAILED:', err.response?.data?.error?.message || err.message);
+    }
+
+    console.log('Starting tags fetch...');
+    let tagsResult: PromiseSettledResult<any>;
+    try {
+      const tagsResponse = await axios.get(
         `https://graph.facebook.com/v18.0/${credentials.accountId}/tags`,
         {
           ...apiConfig,
@@ -258,35 +266,53 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
             access_token: credentials.accessToken,
           },
         }
-      ),
-      // Step 3: Get DM conversations (if pageId available)
-      credentials.pageId
-        ? axios.get(
-            `https://graph.facebook.com/v18.0/${credentials.pageId}/conversations`,
-            {
-              ...apiConfig,
-              params: {
-                platform: 'instagram',
-                fields: 'id,participants,updated_time,messages.limit(1){id,message,from,created_time}',
-                limit: 10,
-                access_token: credentials.accessToken,
-              },
-            }
-          )
-        : Promise.resolve({ data: { data: [] } }),
-      // Step 4: Get webhook comments (real-time notifications)
-      getWebhookComments(credentials),
-    ]);
+      );
+      tagsResult = { status: 'fulfilled', value: tagsResponse };
+      console.log('Tags fetch SUCCESS:', tagsResponse.data.data?.length || 0, 'tags');
+    } catch (err: any) {
+      tagsResult = { status: 'rejected', reason: err };
+      console.log('Tags fetch FAILED:', err.response?.data?.error?.message || err.message);
+    }
 
-    // Log API call results immediately after Promise.allSettled
-    console.log('API calls completed:', {
-      mediaStatus: mediaResult.status,
-      mediaError: mediaResult.status === 'rejected' ? ((mediaResult.reason as any)?.response?.data?.error?.message || String(mediaResult.reason)) : null,
-      mediaPostCount: mediaResult.status === 'fulfilled' ? (mediaResult.value.data.data?.length || 0) : 0,
-      tagsStatus: tagsResult.status,
-      conversationsStatus: conversationsResult.status,
-      webhookStatus: webhookResult.status,
-    });
+    console.log('Starting conversations fetch...');
+    let conversationsResult: PromiseSettledResult<any>;
+    if (credentials.pageId) {
+      try {
+        const convResponse = await axios.get(
+          `https://graph.facebook.com/v18.0/${credentials.pageId}/conversations`,
+          {
+            ...apiConfig,
+            params: {
+              platform: 'instagram',
+              fields: 'id,participants,updated_time,messages.limit(1){id,message,from,created_time}',
+              limit: 10,
+              access_token: credentials.accessToken,
+            },
+          }
+        );
+        conversationsResult = { status: 'fulfilled', value: convResponse };
+        console.log('Conversations fetch SUCCESS:', convResponse.data.data?.length || 0, 'conversations');
+      } catch (err: any) {
+        conversationsResult = { status: 'rejected', reason: err };
+        console.log('Conversations fetch FAILED:', err.response?.data?.error?.message || err.message);
+      }
+    } else {
+      conversationsResult = { status: 'fulfilled', value: { data: { data: [] } } };
+      console.log('Conversations fetch SKIPPED (no pageId)');
+    }
+
+    console.log('Starting webhook fetch...');
+    let webhookResult: PromiseSettledResult<any>;
+    try {
+      const webhookComments = await getWebhookComments(credentials);
+      webhookResult = { status: 'fulfilled', value: webhookComments };
+      console.log('Webhook fetch SUCCESS:', webhookComments?.length || 0, 'comments');
+    } catch (err: any) {
+      webhookResult = { status: 'rejected', reason: err };
+      console.log('Webhook fetch FAILED:', err.message);
+    }
+
+    console.log('All API calls completed');
 
     // Process media/comments
     if (mediaResult.status === 'fulfilled') {
