@@ -7,7 +7,7 @@ import { authApi } from '../../services/authApi';
 type View = 'login' | 'register' | 'register-success';
 
 export function LoginPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { login } = useAuth();
   const [view, setView] = useState<View>('login');
   const [registrationEnabled, setRegistrationEnabled] = useState(false);
@@ -89,10 +89,37 @@ export function LoginPage() {
     setRegisterPasswordConfirm('');
   };
 
+  const changeLanguage = (lang: 'de' | 'en') => {
+    i18n.changeLanguage(lang);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        <div className="bg-white rounded-2xl shadow-xl p-8">
+        <div className="bg-white rounded-2xl shadow-xl p-8 relative">
+          {/* Language Switcher */}
+          <div className="absolute top-4 right-4 flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={() => changeLanguage('de')}
+              className={`px-2.5 py-1 text-sm font-medium rounded-md transition-colors ${
+                i18n.language === 'de'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              DE
+            </button>
+            <button
+              onClick={() => changeLanguage('en')}
+              className={`px-2.5 py-1 text-sm font-medium rounded-md transition-colors ${
+                i18n.language === 'en'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              EN
+            </button>
+          </div>
           <div className="text-center mb-8">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl mb-4">
               <svg

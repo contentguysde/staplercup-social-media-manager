@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Users, UserPlus, Trash2, Edit2, Loader2, CheckCircle, XCircle, Shield, Eye, Briefcase, X, Save } from 'lucide-react';
 import { authApi, type UserPublic, type Role } from '../../services/authApi';
 import { useAuth } from '../../context/AuthContext';
 
-const ROLE_CONFIG: Record<Role, { label: string; icon: typeof Shield; color: string; bgColor: string }> = {
-  admin: { label: 'Admin', icon: Shield, color: 'text-red-600', bgColor: 'bg-red-50' },
-  manager: { label: 'Manager', icon: Briefcase, color: 'text-blue-600', bgColor: 'bg-blue-50' },
-  viewer: { label: 'Viewer', icon: Eye, color: 'text-gray-600', bgColor: 'bg-gray-50' },
+const ROLE_CONFIG: Record<Role, { labelKey: string; icon: typeof Shield; color: string; bgColor: string }> = {
+  admin: { labelKey: 'common.roles.admin', icon: Shield, color: 'text-red-600', bgColor: 'bg-red-50' },
+  manager: { labelKey: 'common.roles.manager', icon: Briefcase, color: 'text-blue-600', bgColor: 'bg-blue-50' },
+  viewer: { labelKey: 'common.roles.viewer', icon: Eye, color: 'text-gray-600', bgColor: 'bg-gray-50' },
 };
 
 interface AddUserFormData {
@@ -17,6 +18,7 @@ interface AddUserFormData {
 }
 
 export function UserManagement() {
+  const { t, i18n } = useTranslation();
   const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<UserPublic[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,7 +50,7 @@ export function UserManagement() {
       const data = await authApi.getUsers();
       setUsers(data);
     } catch (error) {
-      setMessage({ type: 'error', text: 'Fehler beim Laden der Benutzer' });
+      setMessage({ type: 'error', text: t('settings.users.loadError') });
     } finally {
       setLoading(false);
     }
@@ -62,12 +64,12 @@ export function UserManagement() {
 
       await authApi.register(addFormData.email, addFormData.password, addFormData.name, addFormData.role);
 
-      setMessage({ type: 'success', text: 'Benutzer erfolgreich angelegt' });
+      setMessage({ type: 'success', text: t('settings.users.userCreated') });
       setShowAddModal(false);
       setAddFormData({ email: '', password: '', name: '', role: 'viewer' });
       await loadUsers();
     } catch (error) {
-      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Fehler beim Anlegen' });
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : t('settings.users.createError') });
     } finally {
       setSubmitting(false);
     }
@@ -91,11 +93,11 @@ export function UserManagement() {
         await authApi.updateUserRole(editingUser.id, editFormData.role);
       }
 
-      setMessage({ type: 'success', text: 'Benutzer erfolgreich aktualisiert' });
+      setMessage({ type: 'success', text: t('settings.users.userUpdated') });
       setEditingUser(null);
       await loadUsers();
     } catch (error) {
-      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Fehler beim Aktualisieren' });
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : t('settings.users.updateError') });
     } finally {
       setSubmitting(false);
     }
@@ -108,10 +110,10 @@ export function UserManagement() {
 
       await authApi.deleteUser(userId);
 
-      setMessage({ type: 'success', text: 'Benutzer erfolgreich gelöscht' });
+      setMessage({ type: 'success', text: t('settings.users.userDeleted') });
       await loadUsers();
     } catch (error) {
-      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Fehler beim Löschen' });
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : t('settings.users.deleteError') });
     } finally {
       setDeletingUserId(null);
     }
@@ -136,8 +138,8 @@ export function UserManagement() {
         <div className="flex items-center gap-3">
           <span className="text-2xl"><Users size={28} className="text-gray-600" /></span>
           <div>
-            <h3 className="text-lg font-semibold text-gray-800">Benutzerverwaltung</h3>
-            <p className="text-sm text-gray-500">Verwalte Benutzer und deren Berechtigungen</p>
+            <h3 className="text-lg font-semibold text-gray-800">{t('settings.users.title')}</h3>
+            <p className="text-sm text-gray-500">{t('settings.users.subtitle')}</p>
           </div>
         </div>
         <button
@@ -145,7 +147,7 @@ export function UserManagement() {
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
         >
           <UserPlus size={18} />
-          Benutzer hinzufügen
+          {t('settings.users.addUser')}
         </button>
       </div>
 
@@ -165,11 +167,11 @@ export function UserManagement() {
         <table className="w-full">
           <thead>
             <tr className="border-b border-gray-200">
-              <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Name</th>
-              <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">E-Mail</th>
-              <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Rolle</th>
-              <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Erstellt</th>
-              <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Aktionen</th>
+              <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">{t('settings.users.name')}</th>
+              <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">{t('settings.users.email')}</th>
+              <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">{t('settings.users.role')}</th>
+              <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">{t('settings.users.created')}</th>
+              <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">{t('settings.users.actions')}</th>
             </tr>
           </thead>
           <tbody>
@@ -184,7 +186,7 @@ export function UserManagement() {
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-gray-800">{user.name}</span>
                       {isCurrentUser && (
-                        <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full">Du</span>
+                        <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full">{t('settings.users.you')}</span>
                       )}
                     </div>
                   </td>
@@ -192,11 +194,11 @@ export function UserManagement() {
                   <td className="py-3 px-4">
                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm ${roleConfig.bgColor} ${roleConfig.color}`}>
                       <RoleIcon size={14} />
-                      {roleConfig.label}
+                      {t(roleConfig.labelKey)}
                     </span>
                   </td>
                   <td className="py-3 px-4 text-gray-500 text-sm">
-                    {new Date(user.created_at).toLocaleDateString('de-DE')}
+                    {new Date(user.created_at).toLocaleDateString(i18n.language === 'de' ? 'de-DE' : 'en-US')}
                   </td>
                   <td className="py-3 px-4">
                     <div className="flex items-center justify-end gap-2">
@@ -204,7 +206,7 @@ export function UserManagement() {
                         onClick={() => openEditModal(user)}
                         disabled={isCurrentUser}
                         className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        title={isCurrentUser ? 'Eigenes Profil kann hier nicht bearbeitet werden' : 'Bearbeiten'}
+                        title={isCurrentUser ? t('settings.users.cannotEditSelf') : t('settings.users.editUser')}
                       >
                         <Edit2 size={16} />
                       </button>
@@ -212,7 +214,7 @@ export function UserManagement() {
                         onClick={() => handleDeleteUser(user.id)}
                         disabled={isCurrentUser || deletingUserId === user.id}
                         className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        title={isCurrentUser ? 'Sie können sich nicht selbst löschen' : 'Löschen'}
+                        title={isCurrentUser ? t('settings.users.cannotDeleteSelf') : t('settings.users.deleteUser')}
                       >
                         {deletingUserId === user.id ? (
                           <Loader2 size={16} className="animate-spin" />
@@ -231,7 +233,7 @@ export function UserManagement() {
 
       {users.length === 0 && (
         <div className="text-center py-8 text-gray-500">
-          Keine Benutzer gefunden
+          {t('settings.users.noUsers')}
         </div>
       )}
 
@@ -240,7 +242,7 @@ export function UserManagement() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4">
             <div className="flex items-center justify-between mb-4">
-              <h4 className="text-lg font-semibold text-gray-800">Neuen Benutzer anlegen</h4>
+              <h4 className="text-lg font-semibold text-gray-800">{t('settings.users.createUser')}</h4>
               <button onClick={() => setShowAddModal(false)} className="p-1 text-gray-400 hover:text-gray-600">
                 <X size={20} />
               </button>
@@ -248,31 +250,31 @@ export function UserManagement() {
 
             <form onSubmit={handleAddUser} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings.users.name')}</label>
                 <input
                   type="text"
                   value={addFormData.name}
                   onChange={(e) => setAddFormData((prev) => ({ ...prev, name: e.target.value }))}
                   required
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Max Mustermann"
+                  placeholder={t('auth.namePlaceholder')}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">E-Mail</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings.users.email')}</label>
                 <input
                   type="email"
                   value={addFormData.email}
                   onChange={(e) => setAddFormData((prev) => ({ ...prev, email: e.target.value }))}
                   required
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="max@beispiel.de"
+                  placeholder={t('auth.emailPlaceholder')}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Passwort</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('auth.password')}</label>
                 <input
                   type="password"
                   value={addFormData.password}
@@ -280,20 +282,20 @@ export function UserManagement() {
                   required
                   minLength={8}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Mindestens 8 Zeichen"
+                  placeholder={t('auth.passwordMinPlaceholder')}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Rolle</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings.users.role')}</label>
                 <select
                   value={addFormData.role}
                   onChange={(e) => setAddFormData((prev) => ({ ...prev, role: e.target.value as Role }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
-                  <option value="viewer">Viewer - Nur lesen</option>
-                  <option value="manager">Manager - Interaktionen bearbeiten</option>
-                  <option value="admin">Admin - Vollzugriff</option>
+                  <option value="viewer">{t('settings.users.roleViewerDesc')}</option>
+                  <option value="manager">{t('settings.users.roleManagerDesc')}</option>
+                  <option value="admin">{t('settings.users.roleAdminDesc')}</option>
                 </select>
               </div>
 
@@ -303,7 +305,7 @@ export function UserManagement() {
                   onClick={() => setShowAddModal(false)}
                   className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
                 >
-                  Abbrechen
+                  {t('common.cancel')}
                 </button>
                 <button
                   type="submit"
@@ -311,7 +313,7 @@ export function UserManagement() {
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-50"
                 >
                   {submitting ? <Loader2 size={16} className="animate-spin" /> : <UserPlus size={16} />}
-                  Anlegen
+                  {t('settings.users.create')}
                 </button>
               </div>
             </form>
@@ -324,7 +326,7 @@ export function UserManagement() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4">
             <div className="flex items-center justify-between mb-4">
-              <h4 className="text-lg font-semibold text-gray-800">Benutzer bearbeiten</h4>
+              <h4 className="text-lg font-semibold text-gray-800">{t('settings.users.editUser')}</h4>
               <button onClick={() => setEditingUser(null)} className="p-1 text-gray-400 hover:text-gray-600">
                 <X size={20} />
               </button>
@@ -332,7 +334,7 @@ export function UserManagement() {
 
             <form onSubmit={handleEditUser} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">E-Mail</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings.users.email')}</label>
                 <input
                   type="email"
                   value={editingUser.email}
@@ -342,7 +344,7 @@ export function UserManagement() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings.users.name')}</label>
                 <input
                   type="text"
                   value={editFormData.name}
@@ -353,15 +355,15 @@ export function UserManagement() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Rolle</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings.users.role')}</label>
                 <select
                   value={editFormData.role}
                   onChange={(e) => setEditFormData((prev) => ({ ...prev, role: e.target.value as Role }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
-                  <option value="viewer">Viewer - Nur lesen</option>
-                  <option value="manager">Manager - Interaktionen bearbeiten</option>
-                  <option value="admin">Admin - Vollzugriff</option>
+                  <option value="viewer">{t('settings.users.roleViewerDesc')}</option>
+                  <option value="manager">{t('settings.users.roleManagerDesc')}</option>
+                  <option value="admin">{t('settings.users.roleAdminDesc')}</option>
                 </select>
               </div>
 
@@ -371,7 +373,7 @@ export function UserManagement() {
                   onClick={() => setEditingUser(null)}
                   className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
                 >
-                  Abbrechen
+                  {t('common.cancel')}
                 </button>
                 <button
                   type="submit"
@@ -379,7 +381,7 @@ export function UserManagement() {
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-50"
                 >
                   {submitting ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                  Speichern
+                  {t('common.save')}
                 </button>
               </div>
             </form>
