@@ -278,6 +278,16 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
       getWebhookComments(credentials),
     ]);
 
+    // Log API call results immediately after Promise.allSettled
+    console.log('API calls completed:', {
+      mediaStatus: mediaResult.status,
+      mediaError: mediaResult.status === 'rejected' ? ((mediaResult.reason as any)?.response?.data?.error?.message || String(mediaResult.reason)) : null,
+      mediaPostCount: mediaResult.status === 'fulfilled' ? (mediaResult.value.data.data?.length || 0) : 0,
+      tagsStatus: tagsResult.status,
+      conversationsStatus: conversationsResult.status,
+      webhookStatus: webhookResult.status,
+    });
+
     // Process media/comments
     if (mediaResult.status === 'fulfilled') {
       const posts = mediaResult.value.data.data || [];
@@ -459,7 +469,7 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
       totalInteractions: interactions.length,
     };
 
-    console.log('Instagram interactions fetch debug:', debug);
+    console.log('Instagram interactions fetch debug:', JSON.stringify(debug, null, 2));
 
     return res.status(200).json({
       success: true,
