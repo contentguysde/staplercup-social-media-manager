@@ -17,7 +17,7 @@ const interactionTypes = [
 
 const channels = [
   { id: 'instagram', label: 'Instagram', icon: '📸', active: true },
-  { id: 'facebook', label: 'Facebook', icon: '📘', active: false },
+  { id: 'facebook', label: 'Facebook', icon: '📘', active: true },
   { id: 'tiktok', label: 'TikTok', icon: '🎵', active: false },
 ];
 

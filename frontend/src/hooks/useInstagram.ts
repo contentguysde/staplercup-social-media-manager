@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { instagramApi, aiApi, interactionsApi } from '../services/api';
+import { instagramApi, facebookApi, aiApi, interactionsApi } from '../services/api';
 import type { ConnectionStatus } from '../services/api';
 import type { Interaction, InteractionType, Platform, AssignmentInfo, AssignableUser } from '../types';
 
@@ -84,14 +84,30 @@ export function useInstagram(options: UseInstagramOptions = {}) {
       setLoading(true);
       setError(null);
 
-      // Fetch interactions and metadata in parallel
-      const [interactionsResult, metadata] = await Promise.all([
-        instagramApi.getInteractions(),
+      // Fetch interactions from both platforms and metadata in parallel
+      const [instagramResult, facebookResult, metadata] = await Promise.all([
+        instagramApi.getInteractions().catch((err) => {
+          console.error('Failed to fetch Instagram interactions:', err);
+          return { interactions: [], dmPermissionMissing: false };
+        }),
+        facebookApi.getInteractions().catch((err) => {
+          console.error('Failed to fetch Facebook interactions:', err);
+          return { interactions: [], error: undefined };
+        }),
         fetchMetadata(),
       ]);
 
-      // Track DM permission status
-      setDmPermissionMissing(interactionsResult.dmPermissionMissing);
+      // Merge interactions from both platforms
+      const allInteractions = [
+        ...instagramResult.interactions,
+        ...facebookResult.interactions,
+      ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+      // Track DM permission status (Instagram only)
+      setDmPermissionMissing(instagramResult.dmPermissionMissing);
+
+      // Use the merged interactions
+      const interactionsResult = { interactions: allInteractions, dmPermissionMissing: instagramResult.dmPermissionMissing };
 
       // Fetch connection status to check for API errors
       try {
@@ -130,8 +146,13 @@ export function useInstagram(options: UseInstagramOptions = {}) {
     }
   }, [autoCategorize, categorizeInteractions, fetchMetadata]);
 
-  const replyToComment = useCallback(async (commentId: string, message: string) => {
-    const result = await instagramApi.replyToComment(commentId, message);
+  const replyToComment = useCallback(async (commentId: string, message: string, platform: Platform = 'instagram') => {
+    let result;
+    if (platform === 'facebook') {
+      result = await facebookApi.replyToComment(commentId, message);
+    } else {
+      result = await instagramApi.replyToComment(commentId, message);
+    }
     await fetchInteractions();
     return result;
   }, [fetchInteractions]);

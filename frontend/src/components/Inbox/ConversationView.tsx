@@ -22,7 +22,7 @@ interface ConversationViewProps {
 }
 
 // Helper to format caption with hashtags and mentions
-function formatCaption(caption: string) {
+function formatCaption(caption: string, platform: string = 'instagram') {
   if (!caption) return null;
 
   const parts = caption.split(/(\s+)/);
@@ -36,10 +36,14 @@ function formatCaption(caption: string) {
       );
     }
     if (part.startsWith('@')) {
+      // Link to the appropriate platform profile
+      const profileUrl = platform === 'facebook'
+        ? `https://facebook.com/search/top?q=${encodeURIComponent(part.slice(1))}`
+        : `https://instagram.com/${part.slice(1)}`;
       return (
         <a
           key={index}
-          href={`https://instagram.com/${part.slice(1)}`}
+          href={profileUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="text-blue-600 hover:underline"
@@ -145,7 +149,10 @@ export function ConversationView({
     setReplyText(suggestion);
   };
 
-  const userProfileUrl = `https://instagram.com/${interaction.from.username}`;
+  // Platform-specific profile URL
+  const userProfileUrl = interaction.platform === 'facebook'
+    ? `https://facebook.com/${interaction.from.id}`
+    : `https://instagram.com/${interaction.from.username}`;
   const postUrl = interaction.context?.mediaPermalink || '#';
 
   const formattedTime = new Date(interaction.timestamp).toLocaleString('de-DE', {
@@ -500,8 +507,7 @@ export function ConversationView({
                 {interaction.context.mediaCaption && (
                   <div className="p-3">
                     <p className="text-sm text-gray-800 whitespace-pre-line">
-                      <span className="font-semibold mr-1">staplercup_official</span>
-                      {formatCaption(interaction.context.mediaCaption)}
+                      {formatCaption(interaction.context.mediaCaption, interaction.platform)}
                     </p>
                   </div>
                 )}

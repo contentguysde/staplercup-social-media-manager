@@ -97,7 +97,7 @@ function MainApp() {
     if (!selectedInteraction) return;
 
     if (selectedInteraction.type === 'comment') {
-      await replyToComment(selectedInteraction.id, message);
+      await replyToComment(selectedInteraction.id, message, selectedInteraction.platform);
     } else if (selectedInteraction.type === 'dm') {
       await sendMessage(selectedInteraction.from.id, message);
     }

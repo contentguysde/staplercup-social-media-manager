@@ -22,6 +22,10 @@
       "destination": "/api/instagram?action=:path*"
     },
     {
+      "source": "/api/facebook/:path*",
+      "destination": "/api/facebook?action=:path*"
+    },
+    {
       "source": "/api/settings/:path*",
       "destination": "/api/settings?action=:path*"
     },

@@ -216,6 +216,49 @@ export const instagramApi = {
   // Users need to like comments directly on Instagram
 };
 
+// Facebook API
+export interface FacebookStatus {
+  connected: boolean;
+  pageId?: string;
+  pageName?: string;
+  username?: string;
+  picture?: string;
+  source?: 'oauth' | 'env';
+  error?: string;
+}
+
+export const facebookApi = {
+  getStatus: async (): Promise<FacebookStatus> => {
+    const response = await api.get<APIResponse<FacebookStatus>>('/facebook/status');
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to fetch Facebook status');
+    }
+    return response.data.data!;
+  },
+
+  getInteractions: async (): Promise<{ interactions: Interaction[]; error?: string }> => {
+    const response = await api.get<APIResponse<Interaction[]> & { error?: string }>('/facebook/interactions');
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to fetch Facebook interactions');
+    }
+    return {
+      interactions: response.data.data || [],
+      error: response.data.error,
+    };
+  },
+
+  replyToComment: async (commentId: string, message: string): Promise<{ id: string }> => {
+    const response = await api.post<APIResponse<{ id: string }>>('/facebook/reply', {
+      commentId,
+      message,
+    });
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to reply to Facebook comment');
+    }
+    return response.data.data!;
+  },
+};
+
 // AI API
 export const aiApi = {
   getSuggestions: async (request: SuggestionRequest): Promise<SuggestionResponse> => {
