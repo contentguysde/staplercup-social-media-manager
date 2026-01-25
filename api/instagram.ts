@@ -207,12 +207,20 @@ async function getWebhookComments(credentials: { accountId: string; accessToken:
 async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
   const credentials = await getInstagramCredentials();
 
+  console.log('handleInteractions - credentials:', credentials ? {
+    source: credentials.source,
+    accountId: credentials.accountId,
+    hasPageId: !!credentials.pageId,
+    tokenLength: credentials.accessToken?.length || 0,
+  } : 'null');
+
   if (!credentials) {
     // Return empty array if not connected
     return res.status(200).json({
       success: true,
       data: [],
       usingMockData: false,
+      debug: { error: 'No credentials found' },
     });
   }
 
