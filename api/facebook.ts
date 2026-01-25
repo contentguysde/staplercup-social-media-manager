@@ -106,11 +106,13 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
 
   console.log('Facebook handleInteractions - credentials:', credentials ? {
     source: credentials.source,
+    pageId: credentials.pageId,
     hasPageId: !!credentials.pageId,
     tokenLength: credentials.accessToken?.length || 0,
   } : 'null');
 
   if (!credentials || !credentials.pageId) {
+    console.log('Facebook: No pageId found in credentials');
     return res.status(200).json({
       success: true,
       data: [],
@@ -124,16 +126,34 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
     // Configure axios with timeout to prevent Vercel function timeout
     const apiConfig = { timeout: 8000 };
 
-    console.log('Fetching Facebook Page feed...');
+    console.log('Fetching Facebook Page feed for pageId:', credentials.pageId);
+
+    // First, try to get the page info to confirm access
+    try {
+      const pageInfo = await axios.get(
+        `https://graph.facebook.com/v18.0/${credentials.pageId}`,
+        {
+          ...apiConfig,
+          params: {
+            fields: 'id,name',
+            access_token: credentials.accessToken,
+          },
+        }
+      );
+      console.log('Facebook Page info:', pageInfo.data);
+    } catch (pageErr: any) {
+      console.log('Failed to get page info:', pageErr.response?.data?.error || pageErr.message);
+    }
 
     // Fetch posts from the Facebook Page with their comments
+    // Using published_posts instead of feed to get only page's own posts
     const feedResponse = await axios.get(
-      `https://graph.facebook.com/v18.0/${credentials.pageId}/feed`,
+      `https://graph.facebook.com/v18.0/${credentials.pageId}/published_posts`,
       {
         ...apiConfig,
         params: {
-          fields: 'id,message,created_time,permalink_url,full_picture,type,comments.limit(15).order(reverse_chronological){id,message,from,created_time}',
-          limit: 20,
+          fields: 'id,message,created_time,permalink_url,full_picture,type,comments.limit(20).order(reverse_chronological){id,message,from,created_time}',
+          limit: 25,
           access_token: credentials.accessToken,
         },
       }
@@ -141,7 +161,12 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
 
     const posts = feedResponse.data.data || [];
     const totalComments = posts.reduce((sum: number, p: any) => sum + (p.comments?.data?.length || 0), 0);
-    console.log('Facebook feed SUCCESS:', posts.length, 'posts,', totalComments, 'total comments');
+    console.log('Facebook published_posts SUCCESS:', posts.length, 'posts,', totalComments, 'total comments');
+
+    // Log first 3 posts for debugging
+    posts.slice(0, 3).forEach((p: any, i: number) => {
+      console.log(`  Post ${i + 1}: ${p.id}, comments: ${p.comments?.data?.length || 0}, message: ${(p.message || '').substring(0, 50)}...`);
+    });
 
     // Transform posts and comments to interaction format
     for (const post of posts) {

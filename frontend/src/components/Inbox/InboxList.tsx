@@ -36,6 +36,13 @@ const typeLabels = {
   like: 'Like',
 };
 
+// Platform icons for visual distinction
+const platformIcons: Record<string, string> = {
+  instagram: '📸',
+  facebook: '📘',
+  tiktok: '🎵',
+};
+
 const urgencyOptions: { value: Urgency; label: string }[] = [
   { value: 'high', label: 'Dringend' },
   { value: 'medium', label: 'Mittel' },
@@ -362,6 +369,10 @@ export function InboxList({
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between mb-1">
                               <div className="flex items-center gap-2">
+                                {/* Platform icon */}
+                                <span className="text-sm" title={interaction.platform}>
+                                  {platformIcons[interaction.platform] || '📱'}
+                                </span>
                                 <span className={`font-medium ${isUnread ? 'text-gray-900' : 'text-gray-600'}`}>
                                   @{interaction.from.username}
                                 </span>
