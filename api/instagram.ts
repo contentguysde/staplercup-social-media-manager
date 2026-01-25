@@ -374,7 +374,7 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
       totalInteractions: interactions.length,
     };
 
-    console.log('Instagram interactions fetch debug:', JSON.stringify(debug, null, 2));
+    console.log('RETURNING', interactions.length, 'interactions');
 
     return res.status(200).json({
       success: true,
