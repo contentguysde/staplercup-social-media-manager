@@ -119,7 +119,7 @@ async function handleStatus(_req: VercelRequest, res: VercelResponse) {
  */
 async function getWebhookComments(credentials: { accountId: string; accessToken: string }): Promise<any[]> {
   try {
-    // Check if table exists and fetch recent webhook comments
+    // Check if table exists and fetch recent webhook comments for Instagram only
     const result = await sql`
       SELECT
         comment_id,
@@ -130,8 +130,10 @@ async function getWebhookComments(credentials: { accountId: string; accessToken:
         timestamp,
         raw_payload
       FROM webhook_comments
-      WHERE event_type = 'comment'
+      WHERE (platform = 'instagram' OR platform IS NULL)
+        AND event_type = 'comment'
         AND text IS NOT NULL
+        AND (deleted IS NULL OR deleted = FALSE)
       ORDER BY timestamp DESC
       LIMIT 50
     `;

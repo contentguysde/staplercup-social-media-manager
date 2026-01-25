@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { verifyAccessToken, getTokenFromHeader } from './_lib/auth';
 import { getInstagramCredentials } from './_lib/instagram-credentials';
+import { sql } from '@vercel/postgres';
 import axios from 'axios';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -100,6 +101,100 @@ async function handleStatus(_req: VercelRequest, res: VercelResponse) {
   }
 }
 
+/**
+ * Fetch comments from webhook table (real-time notifications)
+ * These are comments that were pushed to us via Facebook webhooks
+ */
+async function getWebhookComments(credentials: { pageId: string; accessToken: string }): Promise<any[]> {
+  try {
+    // Check if table exists and fetch recent webhook comments for Facebook
+    const result = await sql`
+      SELECT
+        comment_id,
+        media_id,
+        text,
+        from_id,
+        from_username,
+        timestamp,
+        raw_payload
+      FROM webhook_comments
+      WHERE platform = 'facebook'
+        AND event_type = 'comment'
+        AND text IS NOT NULL
+        AND (deleted IS NULL OR deleted = FALSE)
+      ORDER BY timestamp DESC
+      LIMIT 50
+    `;
+
+    if (result.rows.length === 0) {
+      return [];
+    }
+
+    console.log('Facebook webhook comments found:', result.rows.length);
+
+    // We need to fetch post details for each unique media_id to get context
+    const postIds = [...new Set(result.rows.map(r => r.media_id).filter(Boolean))];
+    const postCache: Record<string, any> = {};
+
+    // Fetch post details in batches (to avoid too many API calls)
+    for (const postId of postIds.slice(0, 10)) {
+      try {
+        const postResponse = await axios.get(
+          `https://graph.facebook.com/v18.0/${postId}`,
+          {
+            params: {
+              fields: 'id,message,permalink_url,attachments{media,type}',
+              access_token: credentials.accessToken,
+            },
+            timeout: 3000,
+          }
+        );
+        postCache[postId] = postResponse.data;
+      } catch (err) {
+        console.log(`Could not fetch Facebook post ${postId}:`, err);
+      }
+    }
+
+    // Transform webhook comments to interaction format
+    return result.rows.map(row => {
+      const post = postCache[row.media_id] || {};
+      const attachment = post.attachments?.data?.[0];
+      const mediaUrl = attachment?.media?.image?.src || null;
+      const mediaType = attachment?.type === 'video_inline' ? 'VIDEO' : 'IMAGE';
+
+      return {
+        id: row.comment_id,
+        type: 'comment',
+        platform: 'facebook',
+        content: row.text,
+        from: {
+          id: row.from_id || 'unknown',
+          username: row.from_username || 'Unbekannter Nutzer',
+          name: row.from_username || 'Unbekannter Nutzer',
+        },
+        timestamp: row.timestamp,
+        status: 'unread',
+        context: {
+          mediaId: row.media_id,
+          mediaUrl,
+          mediaCaption: post.message || '',
+          mediaPermalink: post.permalink_url || `https://facebook.com/${row.media_id}`,
+          mediaType,
+        },
+        source: 'webhook',
+      };
+    });
+  } catch (error: any) {
+    // Table might not exist yet
+    if (error.message?.includes('does not exist')) {
+      console.log('Facebook webhook comments table does not exist yet');
+    } else {
+      console.error('Error fetching Facebook webhook comments:', error);
+    }
+    return [];
+  }
+}
+
 // GET /api/facebook/interactions - Fetch comments from Facebook Page posts
 async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
   const credentials = await getInstagramCredentials();
@@ -121,94 +216,27 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const interactions: any[] = [];
+    // Fetch both API comments and webhook comments in parallel
+    // Note: pageId is guaranteed to be defined at this point due to the check above
+    const [apiInteractions, webhookInteractions] = await Promise.all([
+      fetchApiComments({ pageId: credentials.pageId!, accessToken: credentials.accessToken }),
+      getWebhookComments({ pageId: credentials.pageId!, accessToken: credentials.accessToken }),
+    ]);
 
-    // Configure axios with timeout to prevent Vercel function timeout
-    const apiConfig = { timeout: 8000 };
+    // Merge and deduplicate interactions (webhook comments take priority as they're more recent)
+    const webhookIds = new Set(webhookInteractions.map(i => i.id));
+    const uniqueApiInteractions = apiInteractions.filter(i => !webhookIds.has(i.id));
 
-    console.log('Fetching Facebook Page feed for pageId:', credentials.pageId);
+    const allInteractions = [...webhookInteractions, ...uniqueApiInteractions]
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
-    // First, try to get the page info to confirm access
-    try {
-      const pageInfo = await axios.get(
-        `https://graph.facebook.com/v18.0/${credentials.pageId}`,
-        {
-          ...apiConfig,
-          params: {
-            fields: 'id,name',
-            access_token: credentials.accessToken,
-          },
-        }
-      );
-      console.log('Facebook Page info:', pageInfo.data);
-    } catch (pageErr: any) {
-      console.log('Failed to get page info:', pageErr.response?.data?.error || pageErr.message);
-    }
-
-    // Fetch posts from the Facebook Page with their comments
-    // Using posts edge instead of published_posts to avoid deprecation issues
-    // Using attachments{media} instead of deprecated full_picture field
-    const feedResponse = await axios.get(
-      `https://graph.facebook.com/v18.0/${credentials.pageId}/posts`,
-      {
-        ...apiConfig,
-        params: {
-          fields: 'id,message,created_time,permalink_url,attachments{media,type},comments.limit(20).order(reverse_chronological){id,message,from,created_time}',
-          limit: 25,
-          access_token: credentials.accessToken,
-        },
-      }
-    );
-
-    const posts = feedResponse.data.data || [];
-    const totalComments = posts.reduce((sum: number, p: any) => sum + (p.comments?.data?.length || 0), 0);
-    console.log('Facebook published_posts SUCCESS:', posts.length, 'posts,', totalComments, 'total comments');
-
-    // Log first 3 posts for debugging
-    posts.slice(0, 3).forEach((p: any, i: number) => {
-      console.log(`  Post ${i + 1}: ${p.id}, comments: ${p.comments?.data?.length || 0}, message: ${(p.message || '').substring(0, 50)}...`);
-    });
-
-    // Transform posts and comments to interaction format
-    for (const post of posts) {
-      const comments = post.comments?.data || [];
-      // Extract media URL from attachments (new API format)
-      const attachment = post.attachments?.data?.[0];
-      const mediaUrl = attachment?.media?.image?.src || null;
-      const mediaType = attachment?.type === 'video_inline' ? 'VIDEO' : 'IMAGE';
-
-      for (const comment of comments) {
-        interactions.push({
-          id: comment.id,
-          type: 'comment',
-          platform: 'facebook',
-          content: comment.message || '',
-          from: {
-            id: comment.from?.id || 'unknown',
-            username: comment.from?.name || 'Unbekannter Nutzer',
-            name: comment.from?.name || 'Unbekannter Nutzer',
-          },
-          timestamp: comment.created_time,
-          status: 'unread',
-          context: {
-            mediaId: post.id,
-            mediaUrl,
-            mediaCaption: post.message || '',
-            mediaPermalink: post.permalink_url || `https://facebook.com/${post.id}`,
-            mediaType,
-          },
-        });
-      }
-    }
-
-    // Sort by timestamp (newest first)
-    interactions.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-
-    console.log('RETURNING', interactions.length, 'Facebook interactions');
+    console.log('RETURNING', allInteractions.length, 'Facebook interactions (',
+      webhookInteractions.length, 'from webhook,',
+      uniqueApiInteractions.length, 'from API)');
 
     return res.status(200).json({
       success: true,
-      data: interactions,
+      data: allInteractions,
     });
 
   } catch (error: any) {
@@ -230,6 +258,92 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
       error: error.response?.data?.error?.message || 'Fehler beim Laden der Facebook-Interaktionen',
     });
   }
+}
+
+/**
+ * Fetch comments from Facebook Graph API (polling)
+ */
+async function fetchApiComments(credentials: { pageId: string; accessToken: string }): Promise<any[]> {
+  const interactions: any[] = [];
+  const apiConfig = { timeout: 8000 };
+
+  console.log('Fetching Facebook Page feed for pageId:', credentials.pageId);
+
+  // First, try to get the page info to confirm access
+  try {
+    const pageInfo = await axios.get(
+      `https://graph.facebook.com/v18.0/${credentials.pageId}`,
+      {
+        ...apiConfig,
+        params: {
+          fields: 'id,name',
+          access_token: credentials.accessToken,
+        },
+      }
+    );
+    console.log('Facebook Page info:', pageInfo.data);
+  } catch (pageErr: any) {
+    console.log('Failed to get page info:', pageErr.response?.data?.error || pageErr.message);
+  }
+
+  // Fetch posts from the Facebook Page with their comments
+  // Using posts edge instead of published_posts to avoid deprecation issues
+  // Using attachments{media} instead of deprecated full_picture field
+  const feedResponse = await axios.get(
+    `https://graph.facebook.com/v18.0/${credentials.pageId}/posts`,
+    {
+      ...apiConfig,
+      params: {
+        fields: 'id,message,created_time,permalink_url,attachments{media,type},comments.limit(20).order(reverse_chronological){id,message,from,created_time}',
+        limit: 25,
+        access_token: credentials.accessToken,
+      },
+    }
+  );
+
+  const posts = feedResponse.data.data || [];
+  const totalComments = posts.reduce((sum: number, p: any) => sum + (p.comments?.data?.length || 0), 0);
+  console.log('Facebook posts SUCCESS:', posts.length, 'posts,', totalComments, 'total comments');
+
+  // Log first 3 posts for debugging
+  posts.slice(0, 3).forEach((p: any, i: number) => {
+    console.log(`  Post ${i + 1}: ${p.id}, comments: ${p.comments?.data?.length || 0}, message: ${(p.message || '').substring(0, 50)}...`);
+  });
+
+  // Transform posts and comments to interaction format
+  for (const post of posts) {
+    const comments = post.comments?.data || [];
+    // Extract media URL from attachments (new API format)
+    const attachment = post.attachments?.data?.[0];
+    const mediaUrl = attachment?.media?.image?.src || null;
+    const mediaType = attachment?.type === 'video_inline' ? 'VIDEO' : 'IMAGE';
+
+    for (const comment of comments) {
+      interactions.push({
+        id: comment.id,
+        type: 'comment',
+        platform: 'facebook',
+        content: comment.message || '',
+        from: {
+          id: comment.from?.id || 'unknown',
+          username: comment.from?.name || 'Unbekannter Nutzer',
+          name: comment.from?.name || 'Unbekannter Nutzer',
+        },
+        timestamp: comment.created_time,
+        status: 'unread',
+        context: {
+          mediaId: post.id,
+          mediaUrl,
+          mediaCaption: post.message || '',
+          mediaPermalink: post.permalink_url || `https://facebook.com/${post.id}`,
+          mediaType,
+        },
+        source: 'api',
+      });
+    }
+  }
+
+  return interactions;
 }
 
 // POST /api/facebook/reply - Reply to a Facebook comment

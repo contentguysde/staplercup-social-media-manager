@@ -7,19 +7,19 @@ const VERIFY_TOKEN = process.env.WEBHOOK_VERIFY_TOKEN || 'staplercup_webhook_202
 const APP_SECRET = process.env.META_APP_SECRET;
 
 /**
- * Instagram Webhook Handler
+ * Facebook Page Webhook Handler
  *
- * This endpoint receives real-time notifications from Instagram when:
- * - New comments are posted on your media
+ * This endpoint receives real-time notifications from Facebook when:
+ * - New comments are posted on your Page posts
  * - Comments are edited or deleted
- * - New mentions occur
+ * - New reactions occur
  *
  * Setup in Meta App Dashboard:
  * 1. Go to your app > Webhooks
- * 2. Subscribe to "Instagram" webhooks
- * 3. Add callback URL: https://your-domain.vercel.app/api/webhooks/instagram
+ * 2. Subscribe to "Page" webhooks
+ * 3. Add callback URL: https://your-domain.vercel.app/api/webhooks/facebook
  * 4. Set verify token to match WEBHOOK_VERIFY_TOKEN
- * 5. Subscribe to: comments, mentions
+ * 5. Subscribe to: feed (for post comments)
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // GET request = Webhook verification from Meta
@@ -44,15 +44,15 @@ function handleVerification(req: VercelRequest, res: VercelResponse) {
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
 
-  console.log('Webhook verification request:', { mode, token, challenge: challenge ? 'present' : 'missing' });
+  console.log('Facebook Webhook verification request:', { mode, token, challenge: challenge ? 'present' : 'missing' });
 
   if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-    console.log('Webhook verified successfully');
+    console.log('Facebook Webhook verified successfully');
     // Must return the challenge as plain text
     return res.status(200).send(challenge);
   }
 
-  console.error('Webhook verification failed - token mismatch');
+  console.error('Facebook Webhook verification failed - token mismatch');
   return res.status(403).json({ error: 'Verification failed' });
 }
 
@@ -83,19 +83,19 @@ function verifySignature(req: VercelRequest, body: string): boolean {
 }
 
 /**
- * Handle incoming webhook events from Instagram
+ * Handle incoming webhook events from Facebook
  */
 async function handleWebhookEvent(req: VercelRequest, res: VercelResponse) {
   const body = JSON.stringify(req.body);
 
   // Verify signature
   if (!verifySignature(req, body)) {
-    console.error('Invalid webhook signature');
+    console.error('Invalid Facebook webhook signature');
     return res.status(401).json({ error: 'Invalid signature' });
   }
 
   const payload = req.body;
-  console.log('Webhook received:', JSON.stringify(payload, null, 2));
+  console.log('Facebook Webhook received:', JSON.stringify(payload, null, 2));
 
   // Must respond with 200 quickly to acknowledge receipt
   // Process asynchronously to avoid timeout
@@ -105,7 +105,7 @@ async function handleWebhookEvent(req: VercelRequest, res: VercelResponse) {
   try {
     await processWebhookPayload(payload);
   } catch (error) {
-    console.error('Error processing webhook:', error);
+    console.error('Error processing Facebook webhook:', error);
     // Don't throw - we already sent 200 response
   }
 }
@@ -114,50 +114,79 @@ async function handleWebhookEvent(req: VercelRequest, res: VercelResponse) {
  * Process the webhook payload and store relevant data
  */
 async function processWebhookPayload(payload: any) {
-  // Ensure the webhook_comments table exists
+  // Ensure the webhook_comments table exists with platform column
   await ensureWebhookTable();
 
   const { object, entry } = payload;
 
-  // We only care about Instagram events
-  if (object !== 'instagram') {
-    console.log('Ignoring non-Instagram webhook:', object);
+  // We only care about Page events
+  if (object !== 'page') {
+    console.log('Ignoring non-Page webhook:', object);
     return;
   }
 
   for (const entryItem of entry || []) {
-    const { id: accountId, time, changes } = entryItem;
+    const { id: pageId, time, changes } = entryItem;
 
     for (const change of changes || []) {
       const { field, value } = change;
 
-      if (field === 'comments') {
-        await processCommentEvent(accountId, value, time);
-      } else if (field === 'mentions') {
-        await processMentionEvent(accountId, value, time);
+      if (field === 'feed') {
+        // Feed events include comments on posts
+        await processFeedEvent(pageId, value, time);
       } else {
-        console.log('Unhandled webhook field:', field);
+        console.log('Unhandled Facebook webhook field:', field);
       }
     }
   }
 }
 
 /**
- * Process a comment webhook event
+ * Process a feed webhook event (includes comments)
  */
-async function processCommentEvent(accountId: string, value: any, timestamp: number) {
-  const { id: commentId, text, from, media } = value;
+async function processFeedEvent(pageId: string, value: any, timestamp: number) {
+  const { item, verb, comment_id, post_id, from, message, created_time } = value;
 
-  console.log('Processing comment:', { commentId, text: text?.substring(0, 50), from, media });
+  console.log('Processing Facebook feed event:', { item, verb, comment_id, post_id, from });
 
-  // Skip if this is a delete event (no text)
+  // We're interested in comment events
+  if (item === 'comment') {
+    if (verb === 'add' || verb === 'edited') {
+      await storeComment(pageId, {
+        commentId: comment_id,
+        postId: post_id,
+        text: message,
+        from,
+        createdTime: created_time,
+        rawPayload: value,
+      });
+    } else if (verb === 'remove') {
+      // Mark comment as deleted
+      await markCommentDeleted(comment_id);
+    }
+  }
+}
+
+/**
+ * Store a Facebook comment in the database
+ */
+async function storeComment(pageId: string, data: {
+  commentId: string;
+  postId: string;
+  text: string;
+  from: { id: string; name: string };
+  createdTime: number;
+  rawPayload: any;
+}) {
+  const { commentId, postId, text, from, createdTime, rawPayload } = data;
+
+  // Skip if no text (likely a deletion event that slipped through)
   if (!text) {
-    console.log('Skipping comment event without text (likely deletion)');
+    console.log('Skipping Facebook comment without text');
     return;
   }
 
   try {
-    // Insert or update the comment
     await sql`
       INSERT INTO webhook_comments (
         comment_id,
@@ -172,68 +201,41 @@ async function processCommentEvent(accountId: string, value: any, timestamp: num
         raw_payload
       ) VALUES (
         ${commentId},
-        ${media?.id || null},
-        ${accountId},
+        ${postId},
+        ${pageId},
         ${text},
         ${from?.id || null},
-        ${from?.username || null},
-        ${new Date(timestamp * 1000).toISOString()},
+        ${from?.name || null},
+        ${new Date(createdTime * 1000).toISOString()},
         'comment',
-        'instagram',
-        ${JSON.stringify(value)}
+        'facebook',
+        ${JSON.stringify(rawPayload)}
       )
       ON CONFLICT (comment_id) DO UPDATE SET
         text = EXCLUDED.text,
         updated_at = CURRENT_TIMESTAMP
     `;
 
-    console.log('Comment stored successfully:', commentId);
+    console.log('Facebook comment stored successfully:', commentId);
   } catch (error) {
-    console.error('Error storing comment:', error);
+    console.error('Error storing Facebook comment:', error);
     throw error;
   }
 }
 
 /**
- * Process a mention webhook event
+ * Mark a comment as deleted
  */
-async function processMentionEvent(accountId: string, value: any, timestamp: number) {
-  const { comment_id: commentId, media_id: mediaId } = value;
-
-  console.log('Processing mention:', { commentId, mediaId });
-
+async function markCommentDeleted(commentId: string) {
   try {
     await sql`
-      INSERT INTO webhook_comments (
-        comment_id,
-        media_id,
-        account_id,
-        text,
-        from_id,
-        from_username,
-        timestamp,
-        event_type,
-        platform,
-        raw_payload
-      ) VALUES (
-        ${commentId || `mention_${mediaId}_${timestamp}`},
-        ${mediaId},
-        ${accountId},
-        ${null},
-        ${null},
-        ${null},
-        ${new Date(timestamp * 1000).toISOString()},
-        'mention',
-        'instagram',
-        ${JSON.stringify(value)}
-      )
-      ON CONFLICT (comment_id) DO NOTHING
+      UPDATE webhook_comments
+      SET deleted = TRUE, updated_at = CURRENT_TIMESTAMP
+      WHERE comment_id = ${commentId}
     `;
-
-    console.log('Mention stored successfully');
+    console.log('Facebook comment marked as deleted:', commentId);
   } catch (error) {
-    console.error('Error storing mention:', error);
-    throw error;
+    console.error('Error marking comment as deleted:', error);
   }
 }
 
@@ -242,6 +244,7 @@ async function processMentionEvent(accountId: string, value: any, timestamp: num
  */
 async function ensureWebhookTable() {
   try {
+    // Create table if not exists
     await sql`
       CREATE TABLE IF NOT EXISTS webhook_comments (
         id SERIAL PRIMARY KEY,
@@ -293,6 +296,6 @@ async function ensureWebhookTable() {
     `;
   } catch (error) {
     // Table might already exist
-    console.log('Table setup:', error);
+    console.log('Facebook webhook table setup:', error);
   }
 }
