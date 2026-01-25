@@ -33,6 +33,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return handleStatus(req, res);
         case 'interactions':
           return handleInteractions(req, res);
+        case 'debug':
+          return handleDebug(req, res);
         default:
           return res.status(404).json({ error: 'Endpoint nicht gefunden' });
       }
@@ -49,6 +51,173 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (error) {
     console.error('Facebook API error:', error);
     return res.status(500).json({ error: 'Interner Serverfehler' });
+  }
+}
+
+// GET /api/facebook/debug - Debug Facebook API connection
+async function handleDebug(_req: VercelRequest, res: VercelResponse) {
+  const debug: any = {
+    timestamp: new Date().toISOString(),
+    steps: [],
+  };
+
+  try {
+    // Step 1: Get credentials
+    const credentials = await getInstagramCredentials();
+    debug.steps.push({
+      step: 'getCredentials',
+      success: !!credentials,
+      data: credentials ? {
+        source: credentials.source,
+        hasAccessToken: !!credentials.accessToken,
+        tokenLength: credentials.accessToken?.length || 0,
+        hasPageId: !!credentials.pageId,
+        pageId: credentials.pageId,
+        accountId: credentials.accountId,
+      } : null,
+    });
+
+    if (!credentials || !credentials.pageId) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          ...debug,
+          error: 'No pageId in credentials',
+        },
+      });
+    }
+
+    // Step 2: Test Facebook Page access
+    try {
+      const pageInfo = await axios.get(
+        `https://graph.facebook.com/v18.0/${credentials.pageId}`,
+        {
+          params: {
+            fields: 'id,name,access_token',
+            access_token: credentials.accessToken,
+          },
+          timeout: 5000,
+        }
+      );
+      debug.steps.push({
+        step: 'getPageInfo',
+        success: true,
+        data: {
+          pageId: pageInfo.data.id,
+          pageName: pageInfo.data.name,
+        },
+      });
+    } catch (err: any) {
+      debug.steps.push({
+        step: 'getPageInfo',
+        success: false,
+        error: err.response?.data?.error || err.message,
+      });
+    }
+
+    // Step 3: Test fetching posts
+    try {
+      const postsResponse = await axios.get(
+        `https://graph.facebook.com/v18.0/${credentials.pageId}/posts`,
+        {
+          params: {
+            fields: 'id,message,created_time',
+            limit: 5,
+            access_token: credentials.accessToken,
+          },
+          timeout: 5000,
+        }
+      );
+      const posts = postsResponse.data.data || [];
+      debug.steps.push({
+        step: 'getPosts',
+        success: true,
+        data: {
+          postCount: posts.length,
+          posts: posts.map((p: any) => ({
+            id: p.id,
+            message: p.message?.substring(0, 50),
+            created_time: p.created_time,
+          })),
+        },
+      });
+
+      // Step 4: Test fetching comments on first post
+      if (posts.length > 0) {
+        try {
+          const commentsResponse = await axios.get(
+            `https://graph.facebook.com/v18.0/${posts[0].id}/comments`,
+            {
+              params: {
+                fields: 'id,message,from,created_time',
+                limit: 5,
+                access_token: credentials.accessToken,
+              },
+              timeout: 5000,
+            }
+          );
+          const comments = commentsResponse.data.data || [];
+          debug.steps.push({
+            step: 'getComments',
+            success: true,
+            data: {
+              postId: posts[0].id,
+              commentCount: comments.length,
+              comments: comments.map((c: any) => ({
+                id: c.id,
+                message: c.message?.substring(0, 50),
+                from: c.from?.name,
+              })),
+            },
+          });
+        } catch (err: any) {
+          debug.steps.push({
+            step: 'getComments',
+            success: false,
+            error: err.response?.data?.error || err.message,
+          });
+        }
+      }
+    } catch (err: any) {
+      debug.steps.push({
+        step: 'getPosts',
+        success: false,
+        error: err.response?.data?.error || err.message,
+      });
+    }
+
+    // Step 5: Check webhook table
+    try {
+      const webhookResult = await sql`
+        SELECT COUNT(*) as count FROM webhook_comments WHERE platform = 'facebook'
+      `;
+      debug.steps.push({
+        step: 'checkWebhookTable',
+        success: true,
+        data: {
+          facebookWebhookCount: webhookResult.rows[0]?.count || 0,
+        },
+      });
+    } catch (err: any) {
+      debug.steps.push({
+        step: 'checkWebhookTable',
+        success: false,
+        error: err.message,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: debug,
+    });
+  } catch (error: any) {
+    return res.status(200).json({
+      success: true,
+      data: {
+        ...debug,
+        finalError: error.message,
+      },
+    });
   }
 }
 
