@@ -414,17 +414,40 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
     interactions.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
     // Include debug info to help diagnose issues
+    const mediaData = mediaResult.status === 'fulfilled' ? mediaResult.value.data.data : null;
+    const totalCommentsOnPosts = mediaData ? mediaData.reduce((sum: number, post: any) => sum + (post.comments?.data?.length || 0), 0) : 0;
+
     const debug = {
       credentialsSource: credentials.source,
       accountId: credentials.accountId,
       hasPageId: !!credentials.pageId,
-      mediaFetched: mediaResult.status === 'fulfilled' ? (mediaResult.value.data.data?.length || 0) : 0,
-      mediaError: mediaResult.status === 'rejected' ? String(mediaResult.reason) : null,
+      pageId: credentials.pageId || null,
+      // Media details
+      mediaFetched: mediaData?.length || 0,
+      mediaError: mediaResult.status === 'rejected'
+        ? ((mediaResult.reason as any)?.response?.data?.error?.message || String(mediaResult.reason))
+        : null,
+      totalCommentsOnPosts,
+      // Show first few post IDs for debugging
+      firstPosts: mediaData?.slice(0, 3).map((p: any) => ({
+        id: p.id,
+        commentCount: p.comments?.data?.length || 0,
+        hasComments: !!(p.comments?.data?.length),
+      })) || [],
+      // Tags details
       tagsFetched: tagsResult.status === 'fulfilled' ? (tagsResult.value.data.data?.length || 0) : 0,
-      tagsError: tagsResult.status === 'rejected' ? String(tagsResult.reason) : null,
+      tagsError: tagsResult.status === 'rejected'
+        ? ((tagsResult.reason as any)?.response?.data?.error?.message || String(tagsResult.reason))
+        : null,
+      // Conversations details
       conversationsFetched: conversationsResult.status === 'fulfilled' ? (conversationsResult.value.data.data?.length || 0) : 0,
-      conversationsError: conversationsResult.status === 'rejected' ? String(conversationsResult.reason) : null,
+      conversationsError: conversationsResult.status === 'rejected'
+        ? ((conversationsResult.reason as any)?.response?.data?.error?.message || String(conversationsResult.reason))
+        : null,
+      // Webhook details
       webhookCommentsFetched: webhookResult.status === 'fulfilled' ? (webhookResult.value?.length || 0) : 0,
+      webhookError: webhookResult.status === 'rejected' ? String(webhookResult.reason) : null,
+      // Total
       totalInteractions: interactions.length,
     };
 
