@@ -458,17 +458,23 @@ async function fetchApiComments(credentials: { pageId: string; accessToken: stri
   // Fetch posts from the Facebook Page with their comments
   // Using posts edge instead of published_posts to avoid deprecation issues
   // Using attachments{media} instead of deprecated full_picture field
-  const feedResponse = await axios.get(
-    `https://graph.facebook.com/v18.0/${credentials.pageId}/posts`,
-    {
-      ...apiConfig,
-      params: {
-        fields: 'id,message,created_time,permalink_url,attachments{media,type},comments.limit(20).order(reverse_chronological){id,message,from,created_time}',
-        limit: 25,
-        access_token: credentials.accessToken,
-      },
-    }
-  );
+  let feedResponse;
+  try {
+    feedResponse = await axios.get(
+      `https://graph.facebook.com/v18.0/${credentials.pageId}/posts`,
+      {
+        ...apiConfig,
+        params: {
+          fields: 'id,message,created_time,permalink_url,attachments{media,type},comments.limit(20).order(reverse_chronological){id,message,from,created_time}',
+          limit: 25,
+          access_token: credentials.accessToken,
+        },
+      }
+    );
+  } catch (postsErr: any) {
+    console.error('Facebook posts fetch FAILED:', postsErr.response?.data?.error || postsErr.message);
+    throw postsErr; // Re-throw to be caught by handleInteractions
+  }
 
   const posts = feedResponse.data.data || [];
   const totalComments = posts.reduce((sum: number, p: any) => sum + (p.comments?.data?.length || 0), 0);
