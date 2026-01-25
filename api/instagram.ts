@@ -177,8 +177,7 @@ async function getWebhookComments(credentials: { accountId: string; accessToken:
           name: row.from_username || 'Unbekannter Nutzer',
         },
         timestamp: row.timestamp,
-        read: false,
-        replied: false,
+        status: 'unread', // Frontend expects status field
         context: {
           mediaId: row.media_id,
           mediaUrl: media.media_type === 'VIDEO'
@@ -295,8 +294,7 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
               name: comment.from?.username || 'Unbekannter Nutzer',
             },
             timestamp: comment.timestamp,
-            read: false,
-            replied: false,
+            status: 'unread', // Frontend expects status field, not read/replied booleans
             context: {
               mediaId: post.id,
               // For videos/reels, use thumbnail_url as the preview image
