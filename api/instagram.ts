@@ -259,53 +259,9 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
       console.log('Media fetch FAILED:', err.response?.data?.error?.message || err.message);
     }
 
-    console.log('Starting tags fetch...');
-    let tagsResult: PromiseSettledResult<any>;
-    try {
-      const tagsResponse = await axios.get(
-        `https://graph.facebook.com/v18.0/${credentials.accountId}/tags`,
-        {
-          ...apiConfig,
-          params: {
-            fields: 'id,caption,media_url,permalink,timestamp,username,media_type,media_product_type',
-            limit: 10,
-            access_token: credentials.accessToken,
-          },
-        }
-      );
-      tagsResult = { status: 'fulfilled', value: tagsResponse };
-      console.log('Tags fetch SUCCESS:', tagsResponse.data.data?.length || 0, 'tags');
-    } catch (err: any) {
-      tagsResult = { status: 'rejected', reason: err };
-      console.log('Tags fetch FAILED:', err.response?.data?.error?.message || err.message);
-    }
-
-    console.log('Starting conversations fetch...');
-    let conversationsResult: PromiseSettledResult<any>;
-    if (credentials.pageId) {
-      try {
-        const convResponse = await axios.get(
-          `https://graph.facebook.com/v18.0/${credentials.pageId}/conversations`,
-          {
-            ...apiConfig,
-            params: {
-              platform: 'instagram',
-              fields: 'id,participants,updated_time,messages.limit(1){id,message,from,created_time}',
-              limit: 10,
-              access_token: credentials.accessToken,
-            },
-          }
-        );
-        conversationsResult = { status: 'fulfilled', value: convResponse };
-        console.log('Conversations fetch SUCCESS:', convResponse.data.data?.length || 0, 'conversations');
-      } catch (err: any) {
-        conversationsResult = { status: 'rejected', reason: err };
-        console.log('Conversations fetch FAILED:', err.response?.data?.error?.message || err.message);
-      }
-    } else {
-      conversationsResult = { status: 'fulfilled', value: { data: { data: [] } } };
-      console.log('Conversations fetch SKIPPED (no pageId)');
-    }
+    // Skip tags and conversations fetch for now - they're timing out
+    // TODO: Re-enable once core functionality works
+    console.log('Tags and conversations fetch SKIPPED (disabled for debugging)');
 
     console.log('Starting webhook fetch...');
     let webhookResult: PromiseSettledResult<any>;
@@ -358,87 +314,8 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
       console.log('Could not fetch media:', (mediaResult.reason as any)?.response?.data?.error?.message || mediaResult.reason);
     }
 
-    // Process mentions
-    if (tagsResult.status === 'fulfilled') {
-      const tags = tagsResult.value.data.data || [];
-      for (const tag of tags) {
-        interactions.push({
-          id: `mention_${tag.id}`,
-          type: 'mention',
-          platform: 'instagram',
-          content: tag.caption || `Du wurdest von @${tag.username} markiert`,
-          from: {
-            id: tag.id,
-            username: tag.username || 'Unbekannter Nutzer',
-            name: tag.username || 'Unbekannter Nutzer',
-          },
-          timestamp: tag.timestamp,
-          read: false,
-          replied: false,
-          context: {
-            mediaId: tag.id,
-            mediaUrl: tag.media_url,
-            mediaCaption: tag.caption || '',
-            mediaPermalink: tag.permalink,
-            mediaType: tag.media_type,
-            mediaProductType: tag.media_product_type,
-          },
-        });
-      }
-    } else {
-      console.log('Could not fetch mentions:', (tagsResult.reason as any)?.response?.data?.error?.message || tagsResult.reason);
-    }
-
-    // Process DMs
-    if (conversationsResult.status === 'fulfilled' && credentials.pageId) {
-      const conversations = conversationsResult.value.data.data || [];
-      for (const conv of conversations) {
-        const participant = conv.participants?.data?.find(
-          (p: any) => p.id !== credentials.pageId && p.id !== credentials.accountId
-        );
-        const latestMessage = conv.messages?.data?.[0];
-
-        if (latestMessage) {
-          const isFromOther =
-            latestMessage.from?.id !== credentials.pageId &&
-            latestMessage.from?.id !== credentials.accountId;
-
-          if (isFromOther) {
-            interactions.push({
-              id: `dm_${conv.id}`,
-              type: 'dm',
-              platform: 'instagram',
-              content: latestMessage.message || '',
-              from: {
-                id: participant?.id || latestMessage.from?.id || 'unknown',
-                username: participant?.username || latestMessage.from?.username || 'Unbekannter Nutzer',
-                name: participant?.name || participant?.username || latestMessage.from?.name || 'Unbekannter Nutzer',
-              },
-              timestamp: latestMessage.created_time,
-              read: false,
-              replied: false,
-              conversationId: conv.id,
-            });
-          }
-        }
-      }
-    } else if (conversationsResult.status === 'rejected') {
-      const dmError = (conversationsResult.reason as any)?.response?.data?.error;
-      const dmErrorMessage = dmError?.message || conversationsResult.reason;
-      const dmErrorCode = dmError?.code;
-
-      // Check if this is a permission error (code 10 = permission denied, code 200 = permission error)
-      const isPermissionError = dmErrorCode === 10 || dmErrorCode === 200 ||
-        dmErrorMessage?.toLowerCase().includes('permission') ||
-        dmErrorMessage?.toLowerCase().includes('does not have');
-
-      if (isPermissionError) {
-        console.log('DM permission missing - instagram_business_manage_messages required');
-        dmPermissionMissing = true;
-      } else {
-        console.log('Could not fetch DMs:', dmErrorMessage);
-      }
-    }
+    // Tags/mentions and DMs are currently disabled for debugging
+    // TODO: Re-enable once core functionality works
 
     // Process webhook comments (real-time notifications)
     // These may include comments on older posts that weren't fetched via polling
@@ -484,16 +361,12 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
         commentCount: p.comments?.data?.length || 0,
         hasComments: !!(p.comments?.data?.length),
       })) || [],
-      // Tags details
-      tagsFetched: tagsResult.status === 'fulfilled' ? (tagsResult.value.data.data?.length || 0) : 0,
-      tagsError: tagsResult.status === 'rejected'
-        ? ((tagsResult.reason as any)?.response?.data?.error?.message || String(tagsResult.reason))
-        : null,
-      // Conversations details
-      conversationsFetched: conversationsResult.status === 'fulfilled' ? (conversationsResult.value.data.data?.length || 0) : 0,
-      conversationsError: conversationsResult.status === 'rejected'
-        ? ((conversationsResult.reason as any)?.response?.data?.error?.message || String(conversationsResult.reason))
-        : null,
+      // Tags details (currently disabled)
+      tagsFetched: 0,
+      tagsError: 'disabled for debugging',
+      // Conversations details (currently disabled)
+      conversationsFetched: 0,
+      conversationsError: 'disabled for debugging',
       // Webhook details
       webhookCommentsFetched: webhookResult.status === 'fulfilled' ? (webhookResult.value?.length || 0) : 0,
       webhookError: webhookResult.status === 'rejected' ? String(webhookResult.reason) : null,
