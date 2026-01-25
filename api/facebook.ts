@@ -146,13 +146,14 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
     }
 
     // Fetch posts from the Facebook Page with their comments
-    // Using published_posts instead of feed to get only page's own posts
+    // Using posts edge instead of published_posts to avoid deprecation issues
+    // Using attachments{media} instead of deprecated full_picture field
     const feedResponse = await axios.get(
-      `https://graph.facebook.com/v18.0/${credentials.pageId}/published_posts`,
+      `https://graph.facebook.com/v18.0/${credentials.pageId}/posts`,
       {
         ...apiConfig,
         params: {
-          fields: 'id,message,created_time,permalink_url,full_picture,type,comments.limit(20).order(reverse_chronological){id,message,from,created_time}',
+          fields: 'id,message,created_time,permalink_url,attachments{media,type},comments.limit(20).order(reverse_chronological){id,message,from,created_time}',
           limit: 25,
           access_token: credentials.accessToken,
         },
@@ -171,6 +172,11 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
     // Transform posts and comments to interaction format
     for (const post of posts) {
       const comments = post.comments?.data || [];
+      // Extract media URL from attachments (new API format)
+      const attachment = post.attachments?.data?.[0];
+      const mediaUrl = attachment?.media?.image?.src || null;
+      const mediaType = attachment?.type === 'video_inline' ? 'VIDEO' : 'IMAGE';
+
       for (const comment of comments) {
         interactions.push({
           id: comment.id,
@@ -186,10 +192,10 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
           status: 'unread',
           context: {
             mediaId: post.id,
-            mediaUrl: post.full_picture || null,
+            mediaUrl,
             mediaCaption: post.message || '',
             mediaPermalink: post.permalink_url || `https://facebook.com/${post.id}`,
-            mediaType: post.type === 'video' ? 'VIDEO' : 'IMAGE',
+            mediaType,
           },
         });
       }
