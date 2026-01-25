@@ -413,11 +413,29 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
     // Sort by timestamp (newest first)
     interactions.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
+    // Include debug info to help diagnose issues
+    const debug = {
+      credentialsSource: credentials.source,
+      accountId: credentials.accountId,
+      hasPageId: !!credentials.pageId,
+      mediaFetched: mediaResult.status === 'fulfilled' ? (mediaResult.value.data.data?.length || 0) : 0,
+      mediaError: mediaResult.status === 'rejected' ? String(mediaResult.reason) : null,
+      tagsFetched: tagsResult.status === 'fulfilled' ? (tagsResult.value.data.data?.length || 0) : 0,
+      tagsError: tagsResult.status === 'rejected' ? String(tagsResult.reason) : null,
+      conversationsFetched: conversationsResult.status === 'fulfilled' ? (conversationsResult.value.data.data?.length || 0) : 0,
+      conversationsError: conversationsResult.status === 'rejected' ? String(conversationsResult.reason) : null,
+      webhookCommentsFetched: webhookResult.status === 'fulfilled' ? (webhookResult.value?.length || 0) : 0,
+      totalInteractions: interactions.length,
+    };
+
+    console.log('Instagram interactions fetch debug:', debug);
+
     return res.status(200).json({
       success: true,
       data: interactions,
       usingMockData: false,
       dmPermissionMissing,
+      debug,
     });
 
   } catch (error: any) {
