@@ -465,7 +465,7 @@ async function fetchApiComments(credentials: { pageId: string; accessToken: stri
       {
         ...apiConfig,
         params: {
-          fields: 'id,message,created_time,permalink_url,attachments{media,type},comments.limit(20).order(reverse_chronological){id,message,from,created_time}',
+          fields: 'id,message,created_time,permalink_url,attachments{media,type},comments.limit(20).order(reverse_chronological){id,message,from{id,name},created_time}',
           limit: 25,
           access_token: credentials.accessToken,
         },
