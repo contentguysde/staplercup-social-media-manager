@@ -299,3 +299,4 @@ async function ensureWebhookTable() {
     console.log('Facebook webhook table setup:', error);
   }
 }
+// trigger deployment Sun Jan 25 19:22:47 CET 2026
