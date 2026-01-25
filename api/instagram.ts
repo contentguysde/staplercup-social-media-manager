@@ -317,71 +317,17 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
     // Tags/mentions and DMs are currently disabled for debugging
     // TODO: Re-enable once core functionality works
 
-    // Process webhook comments (real-time notifications)
-    // These may include comments on older posts that weren't fetched via polling
-    if (webhookResult.status === 'fulfilled') {
-      const webhookComments = webhookResult.value || [];
-      console.log(`Found ${webhookComments.length} webhook comments`);
-
-      // Create a Set of existing comment IDs for deduplication
-      const existingIds = new Set(interactions.map(i => i.id));
-
-      // Add webhook comments that aren't already in the list
-      for (const comment of webhookComments) {
-        if (!existingIds.has(comment.id)) {
-          interactions.push(comment);
-          existingIds.add(comment.id);
-        }
-      }
-    } else {
-      console.log('Could not fetch webhook comments:', webhookResult.reason);
-    }
-
+    // Skip webhook processing for now - just return comments from media fetch
     // Sort by timestamp (newest first)
     interactions.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
-    // Include debug info to help diagnose issues
-    const mediaData = mediaResult.status === 'fulfilled' ? mediaResult.value.data.data : null;
-    const totalCommentsOnPosts = mediaData ? mediaData.reduce((sum: number, post: any) => sum + (post.comments?.data?.length || 0), 0) : 0;
-
-    const debug = {
-      credentialsSource: credentials.source,
-      accountId: credentials.accountId,
-      hasPageId: !!credentials.pageId,
-      pageId: credentials.pageId || null,
-      // Media details
-      mediaFetched: mediaData?.length || 0,
-      mediaError: mediaResult.status === 'rejected'
-        ? ((mediaResult.reason as any)?.response?.data?.error?.message || String(mediaResult.reason))
-        : null,
-      totalCommentsOnPosts,
-      // Show first few post IDs for debugging
-      firstPosts: mediaData?.slice(0, 3).map((p: any) => ({
-        id: p.id,
-        commentCount: p.comments?.data?.length || 0,
-        hasComments: !!(p.comments?.data?.length),
-      })) || [],
-      // Tags details (currently disabled)
-      tagsFetched: 0,
-      tagsError: 'disabled for debugging',
-      // Conversations details (currently disabled)
-      conversationsFetched: 0,
-      conversationsError: 'disabled for debugging',
-      // Webhook details
-      webhookCommentsFetched: webhookResult.status === 'fulfilled' ? (webhookResult.value?.length || 0) : 0,
-      webhookError: webhookResult.status === 'rejected' ? String(webhookResult.reason) : null,
-      // Total
-      totalInteractions: interactions.length,
-    };
-
-    console.log('RETURNING', interactions.length, 'interactions');
+    console.log('RETURNING', interactions.length, 'interactions (comments only)');
 
     return res.status(200).json({
       success: true,
       data: interactions,
       usingMockData: false,
-      dmPermissionMissing,
-      debug,
+      dmPermissionMissing: false,
     });
 
   } catch (error: any) {
