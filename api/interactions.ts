@@ -154,12 +154,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       // Send email notification to the assignee
       try {
-        const assignee = await findUserById(userId);
+        const [assignee, assigner] = await Promise.all([
+          findUserById(userId),
+          findUserById(payload.userId),
+        ]);
         if (assignee && interactionData) {
           await sendAssignmentNotificationEmail({
             assigneeEmail: assignee.email,
             assigneeName: assignee.name,
-            assignerName: payload.name,
+            assignerName: assigner?.name || payload.email,
             interactionContent: interactionData.content || '',
             interactionType: interactionData.type || 'comment',
             interactionFrom: interactionData.from || '',
