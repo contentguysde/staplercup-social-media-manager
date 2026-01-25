@@ -247,7 +247,13 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
         }
       );
       mediaResult = { status: 'fulfilled', value: mediaResponse };
-      console.log('Media fetch SUCCESS:', mediaResponse.data.data?.length || 0, 'posts');
+      const posts = mediaResponse.data.data || [];
+      const totalComments = posts.reduce((sum: number, p: any) => sum + (p.comments?.data?.length || 0), 0);
+      console.log('Media fetch SUCCESS:', posts.length, 'posts,', totalComments, 'total comments');
+      // Log first 3 posts with their comment counts
+      posts.slice(0, 3).forEach((p: any, i: number) => {
+        console.log(`  Post ${i + 1}: ${p.id}, comments: ${p.comments?.data?.length || 0}`);
+      });
     } catch (err: any) {
       mediaResult = { status: 'rejected', reason: err };
       console.log('Media fetch FAILED:', err.response?.data?.error?.message || err.message);
