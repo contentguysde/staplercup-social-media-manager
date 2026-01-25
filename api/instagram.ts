@@ -225,11 +225,13 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    console.log('=== STARTING handleInteractions try block ===');
     const interactions: any[] = [];
     let dmPermissionMissing = false;
 
     // Configure axios with shorter timeout to prevent Vercel function timeout
-    const apiConfig = { timeout: 5000 }; // 5 seconds max per request
+    const apiConfig = { timeout: 8000 }; // 8 seconds max per request
+    console.log('API config set, timeout:', apiConfig.timeout);
 
     // Run API calls sequentially for debugging
     console.log('Starting media fetch...');
