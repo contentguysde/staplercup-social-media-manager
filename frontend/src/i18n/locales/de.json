@@ -213,7 +213,9 @@
     "savedSuccess": "Einstellungen gespeichert! Server neu starten um Änderungen anzuwenden.",
     "loadError": "Fehler beim Laden der Einstellungen",
     "saveError": "Fehler beim Speichern",
-    "restartHint": "Nach dem Speichern muss der Backend-Server neu gestartet werden, damit die Änderungen wirksam werden. Die Credentials werden in der Datei .env gespeichert."
+    "restartHint": "Nach dem Speichern muss der Backend-Server neu gestartet werden, damit die Änderungen wirksam werden. Die Credentials werden in der Datei .env gespeichert.",
+    "note": "Hinweis",
+    "noteText": "Nach dem Speichern muss der Backend-Server neu gestartet werden, damit die Änderungen wirksam werden. Die Credentials werden in der Datei .env gespeichert."
   },
   "errors": {
     "connectionExpired": "Instagram-Verbindung abgelaufen",

@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Save, Eye, EyeOff, CheckCircle, XCircle, Loader2, ExternalLink, ChevronDown, Link2, Unlink } from 'lucide-react';
 import { settingsApi, oauthApi, type Settings as SettingsType, type OpenAIModel, type OAuthStatus } from '../../services/api';
 import { UserManagement } from './UserManagement';
 
 export function Settings() {
+  const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [_settings, setSettings] = useState<SettingsType | null>(null);
   const [loading, setLoading] = useState(true);
@@ -46,15 +48,15 @@ export function Settings() {
       setMessage({
         type: 'success',
         text: username
-          ? `Instagram erfolgreich verbunden als @${username}!`
-          : 'Instagram erfolgreich verbunden!',
+          ? t('settings.instagram.connectedAsSuccess', { username })
+          : t('settings.instagram.connectedSuccess'),
       });
       // Clear the URL params
       setSearchParams({});
     } else if (oauthError) {
       setMessage({
         type: 'error',
-        text: `Instagram-Verbindung fehlgeschlagen: ${oauthError}`,
+        text: t('settings.instagram.connectionFailed', { error: oauthError }),
       });
       // Clear the URL params
       setSearchParams({});
@@ -79,18 +81,18 @@ export function Settings() {
   const [disconnecting, setDisconnecting] = useState(false);
 
   const handleDisconnectInstagram = async () => {
-    if (!confirm('Möchtest du die Instagram-Verbindung wirklich trennen?')) {
+    if (!confirm(t('settings.instagram.disconnectConfirm'))) {
       return;
     }
 
     try {
       setDisconnecting(true);
       await oauthApi.disconnect();
-      setMessage({ type: 'success', text: 'Instagram-Verbindung erfolgreich getrennt' });
+      setMessage({ type: 'success', text: t('settings.instagram.disconnectSuccess') });
       setOauthStatus({ connected: false, source: null });
       await loadOAuthStatus();
     } catch (error) {
-      setMessage({ type: 'error', text: 'Verbindung konnte nicht getrennt werden' });
+      setMessage({ type: 'error', text: t('settings.instagram.disconnectFailed') });
     } finally {
       setDisconnecting(false);
     }
@@ -120,7 +122,7 @@ export function Settings() {
         },
       });
     } catch (error) {
-      setMessage({ type: 'error', text: 'Fehler beim Laden der Einstellungen' });
+      setMessage({ type: 'error', text: t('settings.loadError') });
     } finally {
       setLoading(false);
     }
@@ -144,12 +146,12 @@ export function Settings() {
       const result = await settingsApi.save(dataToSave);
 
       if (result.updated) {
-        setMessage({ type: 'success', text: result.message || 'Einstellungen gespeichert! Server neu starten um Änderungen anzuwenden.' });
+        setMessage({ type: 'success', text: result.message || t('settings.savedSuccess') });
         // Reload settings to reflect saved values
         await loadSettings();
       }
     } catch (error) {
-      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Fehler beim Speichern' });
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : t('settings.saveError') });
     } finally {
       setSaving(false);
     }
@@ -162,7 +164,7 @@ export function Settings() {
       const result = await settingsApi.testOpenAI();
       setOpenaiResult(result);
     } catch (error) {
-      setOpenaiResult({ connected: false, error: 'Verbindungstest fehlgeschlagen' });
+      setOpenaiResult({ connected: false, error: t('settings.ai.connectionFailed') });
     } finally {
       setTestingOpenAI(false);
     }
@@ -175,7 +177,7 @@ export function Settings() {
       const result = await settingsApi.testAnthropic();
       setAnthropicResult(result);
     } catch (error) {
-      setAnthropicResult({ connected: false, error: 'Verbindungstest fehlgeschlagen' });
+      setAnthropicResult({ connected: false, error: t('settings.ai.connectionFailed') });
     } finally {
       setTestingAnthropic(false);
     }
@@ -196,8 +198,8 @@ export function Settings() {
   return (
     <div className="p-6 max-w-4xl mx-auto">
       <div className="mb-8">
-        <h2 className="text-2xl font-bold text-gray-800 mb-2">Einstellungen</h2>
-        <p className="text-gray-500">Konfiguriere deine API-Zugangsdaten für Instagram und AI-Services</p>
+        <h2 className="text-2xl font-bold text-gray-800 mb-2">{t('settings.title')}</h2>
+        <p className="text-gray-500">{t('settings.subtitle')}</p>
       </div>
 
       {message && (
@@ -216,8 +218,8 @@ export function Settings() {
         <div className="flex items-center gap-3 mb-6">
           <span className="text-2xl">📸</span>
           <div>
-            <h3 className="text-lg font-semibold text-gray-800">Instagram / Meta API</h3>
-            <p className="text-sm text-gray-500">Verbinde deinen Instagram Business Account</p>
+            <h3 className="text-lg font-semibold text-gray-800">{t('settings.instagram.title')}</h3>
+            <p className="text-sm text-gray-500">{t('settings.instagram.subtitle')}</p>
           </div>
         </div>
 
@@ -232,19 +234,21 @@ export function Settings() {
                   </div>
                   <div>
                     <p className="font-medium text-gray-900">
-                      Verbunden{oauthStatus.username ? ` als @${oauthStatus.username}` : ''}
+                      {oauthStatus.username
+                        ? t('settings.instagram.connectedAs', { username: oauthStatus.username })
+                        : t('settings.instagram.connected')}
                     </p>
                     <p className="text-sm text-gray-500">
                       {oauthStatus.source === 'oauth' ? (
                         oauthStatus.daysUntilExpiry !== undefined ? (
                           <span className={oauthStatus.daysUntilExpiry <= 7 ? 'text-amber-600' : ''}>
-                            Token gültig für {oauthStatus.daysUntilExpiry} Tage
+                            {t('settings.instagram.tokenValidFor', { days: oauthStatus.daysUntilExpiry })}
                           </span>
                         ) : (
-                          'Über OAuth verbunden'
+                          t('settings.instagram.oauthConnected')
                         )
                       ) : (
-                        'Über Umgebungsvariablen konfiguriert'
+                        t('settings.instagram.envConnected')
                       )}
                     </p>
                   </div>
@@ -255,8 +259,8 @@ export function Settings() {
                     <Unlink size={20} className="text-gray-400" />
                   </div>
                   <div>
-                    <p className="font-medium text-gray-900">Nicht verbunden</p>
-                    <p className="text-sm text-gray-500">Verbinde deinen Instagram Business Account</p>
+                    <p className="font-medium text-gray-900">{t('settings.instagram.notConnected')}</p>
+                    <p className="text-sm text-gray-500">{t('settings.instagram.connectPrompt')}</p>
                   </div>
                 </>
               )}
@@ -269,7 +273,7 @@ export function Settings() {
                   className="px-4 py-2 rounded-lg flex items-center gap-2 font-medium transition-colors bg-red-50 text-red-600 hover:bg-red-100 disabled:opacity-50"
                 >
                   {disconnecting ? <Loader2 size={18} className="animate-spin" /> : <Unlink size={18} />}
-                  Trennen
+                  {t('settings.instagram.disconnect')}
                 </button>
               )}
               <button
@@ -281,7 +285,7 @@ export function Settings() {
                 }`}
               >
                 <Link2 size={18} />
-                {oauthStatus?.connected ? 'Neu verbinden' : 'Mit Instagram verbinden'}
+                {oauthStatus?.connected ? t('settings.instagram.reconnect') : t('settings.instagram.connect')}
               </button>
             </div>
           </div>
@@ -293,15 +297,15 @@ export function Settings() {
         <div className="flex items-center gap-3 mb-6">
           <span className="text-2xl">🤖</span>
           <div>
-            <h3 className="text-lg font-semibold text-gray-800">AI Services</h3>
-            <p className="text-sm text-gray-500">API-Keys für Claude und OpenAI</p>
+            <h3 className="text-lg font-semibold text-gray-800">{t('settings.ai.title')}</h3>
+            <p className="text-sm text-gray-500">{t('settings.ai.subtitle')}</p>
           </div>
         </div>
 
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Anthropic API Key (Claude)
+              {t('settings.ai.anthropicKey')}
             </label>
             <div className="relative">
               <input
@@ -323,7 +327,7 @@ export function Settings() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              OpenAI API Key
+              {t('settings.ai.openaiKey')}
             </label>
             <div className="relative">
               <input
@@ -345,7 +349,7 @@ export function Settings() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              OpenAI Modell
+              {t('settings.ai.openaiModel')}
             </label>
             <div className="relative">
               <select
@@ -362,7 +366,7 @@ export function Settings() {
               <ChevronDown size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             </div>
             <p className="mt-1 text-xs text-gray-500">
-              Wähle das Modell für AI-Antwortvorschläge
+              {t('settings.ai.modelHint')}
             </p>
           </div>
 
@@ -373,7 +377,7 @@ export function Settings() {
               className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2 disabled:opacity-50"
             >
               {testingAnthropic ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}
-              Claude testen
+              {t('settings.ai.testClaude')}
             </button>
 
             {anthropicResult && (
@@ -381,12 +385,12 @@ export function Settings() {
                 {anthropicResult.connected ? (
                   <>
                     <CheckCircle size={16} />
-                    <span>Verbunden ({anthropicResult.model})</span>
+                    <span>{t('settings.ai.connected')} ({anthropicResult.model})</span>
                   </>
                 ) : (
                   <>
                     <XCircle size={16} />
-                    <span>{anthropicResult.error || 'Verbindung fehlgeschlagen'}</span>
+                    <span>{anthropicResult.error || t('settings.ai.connectionFailed')}</span>
                   </>
                 )}
               </div>
@@ -400,7 +404,7 @@ export function Settings() {
               className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2 disabled:opacity-50"
             >
               {testingOpenAI ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}
-              OpenAI testen
+              {t('settings.ai.testOpenai')}
             </button>
 
             {openaiResult && (
@@ -408,12 +412,12 @@ export function Settings() {
                 {openaiResult.connected ? (
                   <>
                     <CheckCircle size={16} />
-                    <span>Verbunden ({openaiResult.models} Modelle verfügbar)</span>
+                    <span>{t('settings.ai.connectedModels', { count: openaiResult.models })}</span>
                   </>
                 ) : (
                   <>
                     <XCircle size={16} />
-                    <span>{openaiResult.error || 'Verbindung fehlgeschlagen'}</span>
+                    <span>{openaiResult.error || t('settings.ai.connectionFailed')}</span>
                   </>
                 )}
               </div>
@@ -451,7 +455,7 @@ export function Settings() {
           className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-50 font-medium"
         >
           {saving ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />}
-          Einstellungen speichern
+          {saving ? t('settings.saving') : t('settings.saveSettings')}
         </button>
       </div>
 
@@ -463,8 +467,7 @@ export function Settings() {
       {/* Info Box */}
       <div className="mt-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
         <p className="text-sm text-yellow-800">
-          <strong>Hinweis:</strong> Nach dem Speichern muss der Backend-Server neu gestartet werden,
-          damit die Änderungen wirksam werden. Die Credentials werden in der Datei <code className="bg-yellow-100 px-1 rounded">.env</code> gespeichert.
+          <strong>{t('settings.note')}:</strong> {t('settings.noteText')}
         </p>
       </div>
     </div>

@@ -213,7 +213,9 @@
     "savedSuccess": "Settings saved! Restart the server to apply changes.",
     "loadError": "Error loading settings",
     "saveError": "Error saving",
-    "restartHint": "After saving, the backend server must be restarted for changes to take effect. Credentials are stored in the .env file."
+    "restartHint": "After saving, the backend server must be restarted for changes to take effect. Credentials are stored in the .env file.",
+    "note": "Note",
+    "noteText": "After saving, the backend server must be restarted for changes to take effect. Credentials are stored in the .env file."
   },
   "errors": {
     "connectionExpired": "Instagram connection expired",
