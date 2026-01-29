@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { instagramApi, facebookApi, aiApi, interactionsApi } from '../services/api';
+import { instagramApi, facebookApi, tiktokApi, aiApi, interactionsApi } from '../services/api';
 import type { ConnectionStatus } from '../services/api';
 import type { Interaction, InteractionType, Platform, AssignmentInfo, AssignableUser } from '../types';
 
@@ -84,8 +84,8 @@ export function useInstagram(options: UseInstagramOptions = {}) {
       setLoading(true);
       setError(null);
 
-      // Fetch interactions from both platforms and metadata in parallel
-      const [instagramResult, facebookResult, metadata] = await Promise.all([
+      // Fetch interactions from all platforms and metadata in parallel
+      const [instagramResult, facebookResult, tiktokResult, metadata] = await Promise.all([
         instagramApi.getInteractions().catch((err) => {
           console.error('Failed to fetch Instagram interactions:', err);
           return { interactions: [], dmPermissionMissing: false };
@@ -94,13 +94,18 @@ export function useInstagram(options: UseInstagramOptions = {}) {
           console.error('Failed to fetch Facebook interactions:', err);
           return { interactions: [], error: undefined };
         }),
+        tiktokApi.getInteractions().catch((err) => {
+          console.error('Failed to fetch TikTok interactions:', err);
+          return { interactions: [] };
+        }),
         fetchMetadata(),
       ]);
 
-      // Merge interactions from both platforms
+      // Merge interactions from all platforms
       const allInteractions = [
         ...instagramResult.interactions,
         ...facebookResult.interactions,
+        ...tiktokResult.interactions,
       ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
       // Track DM permission status (Instagram only)

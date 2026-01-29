@@ -216,6 +216,47 @@ export const instagramApi = {
   // Users need to like comments directly on Instagram
 };
 
+// TikTok API
+export interface TikTokStatus {
+  connected: boolean;
+  username?: string;
+  displayName?: string;
+  avatarUrl?: string;
+  openId?: string;
+}
+
+export const tiktokApi = {
+  getInteractions: async (): Promise<{ interactions: Interaction[] }> => {
+    const response = await api.get<APIResponse<{ interactions: Interaction[] }>>('/tiktok/interactions');
+    return {
+      interactions: response.data.data?.interactions || [],
+    };
+  },
+};
+
+export const tiktokOauthApi = {
+  getAuthorizeUrl: (): string => {
+    const baseUrl = import.meta.env.PROD ? '' : 'http://localhost:3001';
+    return `${baseUrl}/api/tiktok/authorize`;
+  },
+
+  getStatus: async (): Promise<TikTokStatus> => {
+    const response = await api.get<APIResponse<TikTokStatus>>('/tiktok/status');
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to get TikTok status');
+    }
+    return response.data.data!;
+  },
+
+  disconnect: async (): Promise<{ message: string }> => {
+    const response = await api.post<APIResponse<{ message: string }>>('/tiktok/disconnect');
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to disconnect TikTok');
+    }
+    return { message: response.data.message || 'TikTok-Verbindung getrennt' };
+  },
+};
+
 // Facebook API
 export interface FacebookStatus {
   connected: boolean;

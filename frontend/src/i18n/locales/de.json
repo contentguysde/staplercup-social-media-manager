@@ -171,6 +171,25 @@
       "disconnectSuccess": "Meta-Verbindung erfolgreich getrennt",
       "disconnectFailed": "Verbindung konnte nicht getrennt werden"
     },
+    "tiktok": {
+      "title": "TikTok",
+      "subtitle": "Verbinde dein TikTok-Konto",
+      "connect": "Mit TikTok verbinden",
+      "reconnect": "Neu verbinden",
+      "disconnect": "Trennen",
+      "disconnectConfirm": "Möchtest du die TikTok-Verbindung wirklich trennen?",
+      "connected": "Verbunden",
+      "connectedAs": "Verbunden als @{{username}}",
+      "connectedHint": "Videos werden automatisch geladen",
+      "notConnected": "Nicht verbunden",
+      "connectPrompt": "Verbinde dein TikTok-Konto um Videos anzuzeigen",
+      "connectedSuccess": "TikTok erfolgreich verbunden als @{{username}}!",
+      "connectedSuccessGeneric": "TikTok erfolgreich verbunden!",
+      "connectionFailed": "TikTok-Verbindung fehlgeschlagen: {{error}}",
+      "disconnectSuccess": "TikTok-Verbindung erfolgreich getrennt",
+      "disconnectFailed": "TikTok-Verbindung konnte nicht getrennt werden",
+      "commentsNotAvailable": "Kommentare sind aktuell nicht über die TikTok API verfügbar. Videos werden ohne Kommentare angezeigt."
+    },
     "ai": {
       "title": "AI Services",
       "subtitle": "API-Keys für Claude und OpenAI",

@@ -171,6 +171,25 @@
       "disconnectSuccess": "Meta connection disconnected successfully",
       "disconnectFailed": "Could not disconnect"
     },
+    "tiktok": {
+      "title": "TikTok",
+      "subtitle": "Connect your TikTok account",
+      "connect": "Connect with TikTok",
+      "reconnect": "Reconnect",
+      "disconnect": "Disconnect",
+      "disconnectConfirm": "Are you sure you want to disconnect TikTok?",
+      "connected": "Connected",
+      "connectedAs": "Connected as @{{username}}",
+      "connectedHint": "Videos are loaded automatically",
+      "notConnected": "Not connected",
+      "connectPrompt": "Connect your TikTok account to display videos",
+      "connectedSuccess": "TikTok connected successfully as @{{username}}!",
+      "connectedSuccessGeneric": "TikTok connected successfully!",
+      "connectionFailed": "TikTok connection failed: {{error}}",
+      "disconnectSuccess": "TikTok disconnected successfully",
+      "disconnectFailed": "Could not disconnect TikTok",
+      "commentsNotAvailable": "Comments are currently not available via the TikTok API. Videos are displayed without comments."
+    },
     "ai": {
       "title": "AI Services",
       "subtitle": "API keys for Claude and OpenAI",

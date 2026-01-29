@@ -47,6 +47,12 @@ export interface Interaction {
     mediaProductType?: 'FEED' | 'REELS' | 'STORY';
     conversationId?: string;
     commentId?: string;
+    stats?: {
+      views?: number;
+      likes?: number;
+      comments?: number;
+      shares?: number;
+    };
   };
   replies?: Array<{
     id: string;

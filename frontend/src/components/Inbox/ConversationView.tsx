@@ -152,8 +152,11 @@ export function ConversationView({
   // Platform-specific profile URL
   const userProfileUrl = interaction.platform === 'facebook'
     ? `https://facebook.com/${interaction.from.id}`
+    : interaction.platform === 'tiktok'
+    ? `https://www.tiktok.com/@${interaction.from.username}`
     : `https://instagram.com/${interaction.from.username}`;
   const postUrl = interaction.context?.mediaPermalink || '#';
+  const isTikTok = interaction.platform === 'tiktok';
 
   const formattedTime = new Date(interaction.timestamp).toLocaleString('de-DE', {
     day: '2-digit',
@@ -511,6 +514,16 @@ export function ConversationView({
                     </p>
                   </div>
                 )}
+
+                {/* TikTok Video Stats */}
+                {isTikTok && interaction.context?.stats && (
+                  <div className="px-3 pb-3 flex items-center gap-4 text-sm text-gray-500">
+                    <span title="Views">👁 {(interaction.context.stats.views ?? 0).toLocaleString()}</span>
+                    <span title="Likes">❤️ {(interaction.context.stats.likes ?? 0).toLocaleString()}</span>
+                    <span title="Kommentare">💬 {(interaction.context.stats.comments ?? 0).toLocaleString()}</span>
+                    <span title="Shares">🔗 {(interaction.context.stats.shares ?? 0).toLocaleString()}</span>
+                  </div>
+                )}
               </div>
             )}
 
@@ -541,37 +554,60 @@ export function ConversationView({
       </div>
 
       {/* AI Suggestions */}
-      <SuggestionPanel
-        interaction={interaction}
-        onSelectSuggestion={handleSuggestionSelect}
-      />
+      {!isTikTok && (
+        <SuggestionPanel
+          interaction={interaction}
+          onSelectSuggestion={handleSuggestionSelect}
+        />
+      )}
 
-      {/* Reply Input */}
-      <div className="p-4 border-t border-gray-200 bg-white">
-        <div className="flex gap-2">
-          <textarea
-            value={replyText}
-            onChange={(e) => setReplyText(e.target.value)}
-            placeholder="Deine Antwort schreiben..."
-            className="flex-1 resize-none border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            rows={2}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && e.metaKey) {
-                handleSend();
-              }
-            }}
-          />
-          <button
-            onClick={handleSend}
-            disabled={!replyText.trim() || sending}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-          >
-            <Send size={18} />
-            <span>Senden</span>
-          </button>
+      {/* Reply Input — hidden for TikTok */}
+      {isTikTok ? (
+        <div className="p-4 border-t border-gray-200 bg-white">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-500">
+              Antworten über die TikTok API nicht verfügbar
+            </p>
+            {interaction.context?.mediaPermalink && (
+              <a
+                href={interaction.context.mediaPermalink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
+              >
+                <ExternalLink size={14} />
+                Auf TikTok öffnen
+              </a>
+            )}
+          </div>
         </div>
-        <p className="text-xs text-gray-400 mt-2">⌘ + Enter zum Senden</p>
-      </div>
+      ) : (
+        <div className="p-4 border-t border-gray-200 bg-white">
+          <div className="flex gap-2">
+            <textarea
+              value={replyText}
+              onChange={(e) => setReplyText(e.target.value)}
+              placeholder="Deine Antwort schreiben..."
+              className="flex-1 resize-none border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              rows={2}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && e.metaKey) {
+                  handleSend();
+                }
+              }}
+            />
+            <button
+              onClick={handleSend}
+              disabled={!replyText.trim() || sending}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            >
+              <Send size={18} />
+              <span>Senden</span>
+            </button>
+          </div>
+          <p className="text-xs text-gray-400 mt-2">⌘ + Enter zum Senden</p>
+        </div>
+      )}
     </div>
   );
 }

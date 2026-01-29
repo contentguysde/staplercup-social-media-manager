@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Save, Eye, EyeOff, CheckCircle, XCircle, Loader2, ExternalLink, ChevronDown, Link2, Unlink } from 'lucide-react';
-import { settingsApi, oauthApi, type Settings as SettingsType, type OpenAIModel, type OAuthStatus } from '../../services/api';
+import { settingsApi, oauthApi, tiktokOauthApi, type Settings as SettingsType, type OpenAIModel, type OAuthStatus, type TikTokStatus } from '../../services/api';
 import { UserManagement } from './UserManagement';
 
 export function Settings() {
@@ -18,6 +18,8 @@ export function Settings() {
   const [anthropicResult, setAnthropicResult] = useState<{ connected: boolean; model?: string; error?: string } | null>(null);
   const [openaiModels, setOpenaiModels] = useState<OpenAIModel[]>([]);
   const [oauthStatus, setOauthStatus] = useState<OAuthStatus | null>(null);
+  const [tiktokStatus, setTiktokStatus] = useState<TikTokStatus | null>(null);
+  const [disconnectingTiktok, setDisconnectingTiktok] = useState(false);
 
   // Form state for AI settings only
   const [formData, setFormData] = useState({
@@ -38,11 +40,17 @@ export function Settings() {
     loadSettings();
     loadOpenAIModels();
     loadOAuthStatus();
+    loadTikTokStatus();
 
-    // Handle OAuth callback params
+    // Handle OAuth callback params (Meta)
     const oauthSuccess = searchParams.get('oauth_success');
     const oauthError = searchParams.get('oauth_error');
     const username = searchParams.get('username');
+
+    // Handle TikTok callback params
+    const tiktokSuccess = searchParams.get('tiktok_success');
+    const tiktokError = searchParams.get('tiktok_error');
+    const tiktokUsername = searchParams.get('tiktok_username');
 
     if (oauthSuccess === 'true') {
       setMessage({
@@ -51,14 +59,27 @@ export function Settings() {
           ? t('settings.instagram.connectedAsSuccess', { username })
           : t('settings.instagram.connectedSuccess'),
       });
-      // Clear the URL params
       setSearchParams({});
     } else if (oauthError) {
       setMessage({
         type: 'error',
         text: t('settings.instagram.connectionFailed', { error: oauthError }),
       });
-      // Clear the URL params
+      setSearchParams({});
+    } else if (tiktokSuccess === 'true') {
+      setMessage({
+        type: 'success',
+        text: tiktokUsername
+          ? t('settings.tiktok.connectedSuccess', { username: tiktokUsername })
+          : t('settings.tiktok.connectedSuccessGeneric'),
+      });
+      setSearchParams({});
+      loadTikTokStatus();
+    } else if (tiktokError) {
+      setMessage({
+        type: 'error',
+        text: t('settings.tiktok.connectionFailed', { error: tiktokError }),
+      });
       setSearchParams({});
     }
   }, [searchParams, setSearchParams]);
@@ -95,6 +116,38 @@ export function Settings() {
       setMessage({ type: 'error', text: t('settings.instagram.disconnectFailed') });
     } finally {
       setDisconnecting(false);
+    }
+  };
+
+  const loadTikTokStatus = async () => {
+    try {
+      const status = await tiktokOauthApi.getStatus();
+      setTiktokStatus(status);
+    } catch (error) {
+      console.error('Failed to load TikTok status:', error);
+      setTiktokStatus(null);
+    }
+  };
+
+  const handleConnectTikTok = () => {
+    window.location.href = tiktokOauthApi.getAuthorizeUrl();
+  };
+
+  const handleDisconnectTikTok = async () => {
+    if (!confirm(t('settings.tiktok.disconnectConfirm'))) {
+      return;
+    }
+
+    try {
+      setDisconnectingTiktok(true);
+      await tiktokOauthApi.disconnect();
+      setMessage({ type: 'success', text: t('settings.tiktok.disconnectSuccess') });
+      setTiktokStatus({ connected: false });
+      await loadTikTokStatus();
+    } catch (error) {
+      setMessage({ type: 'error', text: t('settings.tiktok.disconnectFailed') });
+    } finally {
+      setDisconnectingTiktok(false);
     }
   };
 
@@ -289,6 +342,86 @@ export function Settings() {
               </button>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* TikTok Section */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+        <div className="flex items-center gap-3 mb-6">
+          <span className="text-2xl">🎵</span>
+          <div>
+            <h3 className="text-lg font-semibold text-gray-800">{t('settings.tiktok.title')}</h3>
+            <p className="text-sm text-gray-500">{t('settings.tiktok.subtitle')}</p>
+          </div>
+        </div>
+
+        {/* TikTok Connection Status */}
+        <div className="mb-4 p-4 rounded-lg border-2 border-dashed border-gray-200 bg-gray-50">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {tiktokStatus?.connected ? (
+                <>
+                  <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+                    {tiktokStatus.avatarUrl ? (
+                      <img src={tiktokStatus.avatarUrl} alt="" className="w-10 h-10 rounded-full" />
+                    ) : (
+                      <CheckCircle size={20} className="text-green-600" />
+                    )}
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">
+                      {tiktokStatus.username
+                        ? t('settings.tiktok.connectedAs', { username: tiktokStatus.username })
+                        : tiktokStatus.displayName
+                        ? t('settings.tiktok.connectedAs', { username: tiktokStatus.displayName })
+                        : t('settings.tiktok.connected')}
+                    </p>
+                    <p className="text-sm text-gray-500">{t('settings.tiktok.connectedHint')}</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
+                    <Unlink size={20} className="text-gray-400" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">{t('settings.tiktok.notConnected')}</p>
+                    <p className="text-sm text-gray-500">{t('settings.tiktok.connectPrompt')}</p>
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {tiktokStatus?.connected && (
+                <button
+                  onClick={handleDisconnectTikTok}
+                  disabled={disconnectingTiktok}
+                  className="px-4 py-2 rounded-lg flex items-center gap-2 font-medium transition-colors bg-red-50 text-red-600 hover:bg-red-100 disabled:opacity-50"
+                >
+                  {disconnectingTiktok ? <Loader2 size={18} className="animate-spin" /> : <Unlink size={18} />}
+                  {t('settings.tiktok.disconnect')}
+                </button>
+              )}
+              <button
+                onClick={handleConnectTikTok}
+                className={`px-4 py-2 rounded-lg flex items-center gap-2 font-medium transition-colors ${
+                  tiktokStatus?.connected
+                    ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    : 'bg-black text-white hover:bg-gray-800'
+                }`}
+              >
+                <Link2 size={18} />
+                {tiktokStatus?.connected ? t('settings.tiktok.reconnect') : t('settings.tiktok.connect')}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* TikTok info note */}
+        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <p className="text-sm text-blue-700">
+            <strong>{t('settings.note')}:</strong> {t('settings.tiktok.commentsNotAvailable')}
+          </p>
         </div>
       </div>
 

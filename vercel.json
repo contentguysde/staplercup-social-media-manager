@@ -26,6 +26,10 @@
       "destination": "/api/facebook?action=:path*"
     },
     {
+      "source": "/api/tiktok/:path*",
+      "destination": "/api/tiktok?action=:path*"
+    },
+    {
       "source": "/api/settings/:path*",
       "destination": "/api/settings?action=:path*"
     },

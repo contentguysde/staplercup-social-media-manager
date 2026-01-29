@@ -18,7 +18,7 @@ const interactionTypes = [
 const channels = [
   { id: 'instagram', label: 'Instagram', icon: '📸', active: true },
   { id: 'facebook', label: 'Facebook', icon: '📘', active: true },
-  { id: 'tiktok', label: 'TikTok', icon: '🎵', active: false },
+  { id: 'tiktok', label: 'TikTok', icon: '🎵', active: true },
 ];
 
 export function Sidebar({ activeView, onViewChange, showSettings = true, myAssignedCount = 0 }: SidebarProps) {
