@@ -5,6 +5,8 @@ import { AlertTriangle, Settings as SettingsIcon, X, Loader2, MessageSquare } fr
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LoginPage } from './components/Auth/LoginPage';
 import { VerifyEmailPage } from './components/Auth/VerifyEmailPage';
+import { TermsPage } from './components/Legal/TermsPage';
+import { PrivacyPage } from './components/Legal/PrivacyPage';
 import { Sidebar } from './components/common/Sidebar';
 import { Header } from './components/common/Header';
 import { Dashboard } from './components/Dashboard/Dashboard';
@@ -460,6 +462,8 @@ function App() {
       <AuthProvider>
         <Routes>
           <Route path="/verify-email" element={<VerifyEmailPage />} />
+          <Route path="/terms" element={<TermsPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/*" element={<AppContent />} />
         </Routes>
       </AuthProvider>

@@ -364,9 +364,14 @@ export function LoginPage() {
           )}
         </div>
 
-        <p className="text-center text-sm text-gray-500 mt-6">
-          StaplerCup Social Media Manager
-        </p>
+        <div className="text-center text-sm text-gray-400 mt-6 space-y-1">
+          <p className="text-gray-500">StaplerCup Social Media Manager</p>
+          <p>
+            <a href="/terms" className="hover:text-gray-600 transition-colors">T&Cs</a>
+            {' · '}
+            <a href="/privacy" className="hover:text-gray-600 transition-colors">Privacy Policy</a>
+          </p>
+        </div>
       </div>
     </div>
   );
