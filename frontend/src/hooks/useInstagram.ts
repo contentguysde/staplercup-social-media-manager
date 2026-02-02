@@ -153,7 +153,10 @@ export function useInstagram(options: UseInstagramOptions = {}) {
 
   const replyToComment = useCallback(async (commentId: string, message: string, platform: Platform = 'instagram') => {
     let result;
-    if (platform === 'facebook') {
+    if (platform === 'tiktok') {
+      const tiktokResult = await tiktokApi.replyToComment(commentId, message);
+      result = { id: tiktokResult.commentId };
+    } else if (platform === 'facebook') {
       result = await facebookApi.replyToComment(commentId, message);
     } else {
       result = await instagramApi.replyToComment(commentId, message);

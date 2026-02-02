@@ -1,4 +1,4 @@
-import { MessageSquare, Mail, AtSign, Image, Filter, X, Archive, ArchiveRestore, MailOpen, Mail as MailIcon } from 'lucide-react';
+import { MessageSquare, Mail, AtSign, Image, Filter, X, Archive, ArchiveRestore, MailOpen, Mail as MailIcon, Film } from 'lucide-react';
 import { useState } from 'react';
 import type { Interaction, InteractionType, Urgency, Language, Topic, Platform } from '../../types';
 import { InteractionLabels } from './InteractionLabels';
@@ -22,18 +22,20 @@ interface InboxListProps {
   onMarkAsUnread?: (interactionId: string) => void;
 }
 
-const typeIcons = {
+const typeIcons: Record<string, any> = {
   comment: MessageSquare,
   dm: Mail,
   mention: AtSign,
   like: MessageSquare,
+  post: Film,
 };
 
-const typeLabels = {
+const typeLabels: Record<string, string> = {
   comment: 'Kommentar',
   dm: 'Nachricht',
   mention: 'Erwähnung',
   like: 'Like',
+  post: 'Video',
 };
 
 // Platform icons for visual distinction

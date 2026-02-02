@@ -223,6 +223,19 @@ export interface TikTokStatus {
   displayName?: string;
   avatarUrl?: string;
   openId?: string;
+  businessId?: string;
+}
+
+export interface TikTokComment {
+  id: string;
+  text: string;
+  username: string;
+  userId: string;
+  profileImage: string;
+  createTime: number;
+  likeCount: number;
+  replyCount: number;
+  parentCommentId: string | null;
 }
 
 export const tiktokApi = {
@@ -231,6 +244,26 @@ export const tiktokApi = {
     return {
       interactions: response.data.data?.interactions || [],
     };
+  },
+
+  getComments: async (videoId: string): Promise<{ comments: TikTokComment[]; hasMore: boolean }> => {
+    const response = await api.get<APIResponse<{ comments: TikTokComment[]; hasMore: boolean }>>(`/tiktok/comments?video_id=${videoId}`);
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to fetch TikTok comments');
+    }
+    return response.data.data || { comments: [], hasMore: false };
+  },
+
+  replyToComment: async (commentId: string, text: string, videoId?: string): Promise<{ commentId: string }> => {
+    const response = await api.post<APIResponse<{ commentId: string }>>('/tiktok/reply', {
+      commentId,
+      text,
+      videoId,
+    });
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to reply to TikTok comment');
+    }
+    return response.data.data!;
   },
 };
 

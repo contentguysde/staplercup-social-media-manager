@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, ExternalLink, Heart, User, UserPlus, UserMinus, ChevronDown, Loader2, Film, Image } from 'lucide-react';
+import { Send, ExternalLink, Heart, User, UserPlus, UserMinus, ChevronDown, Loader2, Film, Image, MessageCircle } from 'lucide-react';
 import { SuggestionPanel } from '../AIAssistant/SuggestionPanel';
-import { instagramApi, type DMMessage } from '../../services/api';
+import { instagramApi, tiktokApi, type DMMessage, type TikTokComment } from '../../services/api';
 import type { Interaction, AssignmentInfo, AssignableUser } from '../../types';
 
 interface ConversationViewProps {
@@ -79,6 +79,12 @@ export function ConversationView({
   // Check if this is a DM with a conversation ID
   const isDM = interaction.type === 'dm';
   const conversationId = (interaction as any).conversationId as string | undefined;
+  const isTikTok = interaction.platform === 'tiktok';
+
+  // TikTok comments state
+  const [tiktokComments, setTiktokComments] = useState<TikTokComment[]>([]);
+  const [loadingComments, setLoadingComments] = useState(false);
+  const [replyToCommentId, setReplyToCommentId] = useState<string | null>(null);
 
   // Load DM messages when conversation changes
   useEffect(() => {
@@ -115,6 +121,32 @@ export function ConversationView({
     }
   };
 
+  // Load TikTok comments when viewing a TikTok post
+  useEffect(() => {
+    if (isTikTok && interaction.type === 'post' && interaction.context?.mediaId) {
+      loadTikTokComments();
+    } else if (isTikTok) {
+      setTiktokComments([]);
+      setReplyToCommentId(null);
+    }
+  }, [interaction.id]);
+
+  const loadTikTokComments = async () => {
+    const videoId = interaction.context?.mediaId;
+    if (!videoId) return;
+
+    try {
+      setLoadingComments(true);
+      const result = await tiktokApi.getComments(videoId);
+      setTiktokComments(result.comments || []);
+    } catch (err) {
+      console.error('Failed to load TikTok comments:', err);
+      setTiktokComments([]);
+    } finally {
+      setLoadingComments(false);
+    }
+  };
+
   // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -131,8 +163,21 @@ export function ConversationView({
 
     try {
       setSending(true);
-      await onSendReply(replyText);
-      setReplyText('');
+      if (isTikTok && replyToCommentId) {
+        // TikTok: reply directly to the selected comment via Business API
+        await tiktokApi.replyToComment(
+          replyToCommentId,
+          replyText,
+          interaction.context?.mediaId
+        );
+        setReplyText('');
+        setReplyToCommentId(null);
+        // Reload comments to show the new reply
+        await loadTikTokComments();
+      } else {
+        await onSendReply(replyText);
+        setReplyText('');
+      }
     } finally {
       setSending(false);
     }
@@ -156,7 +201,6 @@ export function ConversationView({
     ? `https://www.tiktok.com/@${interaction.from.username}`
     : `https://instagram.com/${interaction.from.username}`;
   const postUrl = interaction.context?.mediaPermalink || '#';
-  const isTikTok = interaction.platform === 'tiktok';
 
   const formattedTime = new Date(interaction.timestamp).toLocaleString('de-DE', {
     day: '2-digit',
@@ -255,7 +299,7 @@ export function ConversationView({
                 )}
               </div>
               <p className="text-sm text-gray-500 capitalize">
-                {interaction.type === 'comment' ? 'Kommentar' : interaction.type === 'dm' ? 'Direktnachricht' : 'Erwähnung'}
+                {interaction.type === 'post' ? 'Video' : interaction.type === 'comment' ? 'Kommentar' : interaction.type === 'dm' ? 'Direktnachricht' : 'Erwähnung'}
               </p>
             </div>
           </div>
@@ -336,7 +380,8 @@ export function ConversationView({
         {/* Comment/Mention View - Original layout */}
         {!isDM && (
           <>
-            {/* Comment Section - Now ABOVE the post */}
+            {/* Comment Section - ABOVE the post (hidden for TikTok posts where content = caption) */}
+            {interaction.type !== 'post' && (
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
               <div className="p-4">
                 <div className="flex items-start justify-between gap-3">
@@ -438,8 +483,9 @@ export function ConversationView({
                 </div>
               </div>
             </div>
+            )}
 
-            {/* Instagram-Style Post Preview - Now BELOW the comment */}
+            {/* Post Preview (Video/Image card) */}
             {interaction.context?.mediaUrl && (
               <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
                 {/* Post Header */}
@@ -506,11 +552,11 @@ export function ConversationView({
                   </div>
                 </div>
 
-                {/* Post Caption */}
-                {interaction.context.mediaCaption && (
+                {/* Post Caption — for TikTok posts, use interaction.content as caption */}
+                {(interaction.context.mediaCaption || interaction.type === 'post') && (
                   <div className="p-3">
                     <p className="text-sm text-gray-800 whitespace-pre-line">
-                      {formatCaption(interaction.context.mediaCaption, interaction.platform)}
+                      {formatCaption(interaction.context.mediaCaption || interaction.content, interaction.platform)}
                     </p>
                   </div>
                 )}
@@ -522,6 +568,97 @@ export function ConversationView({
                     <span title="Likes">❤️ {(interaction.context.stats.likes ?? 0).toLocaleString()}</span>
                     <span title="Kommentare">💬 {(interaction.context.stats.comments ?? 0).toLocaleString()}</span>
                     <span title="Shares">🔗 {(interaction.context.stats.shares ?? 0).toLocaleString()}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TikTok Comments Section */}
+            {isTikTok && interaction.type === 'post' && (
+              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                <div className="p-3 border-b border-gray-100 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <MessageCircle size={16} className="text-gray-500" />
+                    <h3 className="text-sm font-semibold text-gray-700">Kommentare</h3>
+                  </div>
+                  <button
+                    onClick={loadTikTokComments}
+                    className="text-xs text-gray-400 hover:text-gray-600"
+                    title="Kommentare aktualisieren"
+                  >
+                    Aktualisieren
+                  </button>
+                </div>
+
+                {loadingComments ? (
+                  <div className="flex items-center justify-center py-6">
+                    <Loader2 size={20} className="animate-spin text-gray-400" />
+                    <span className="ml-2 text-sm text-gray-500">Lade Kommentare...</span>
+                  </div>
+                ) : tiktokComments.length > 0 ? (
+                  <div className="divide-y divide-gray-100 max-h-96 overflow-y-auto">
+                    {tiktokComments.map((comment) => (
+                      <div
+                        key={comment.id}
+                        className={`p-3 transition-colors ${
+                          replyToCommentId === comment.id ? 'bg-blue-50' : 'hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          {comment.profileImage ? (
+                            <img src={comment.profileImage} alt="" className="w-8 h-8 rounded-full" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
+                              <User size={14} className="text-gray-500" />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <a
+                                href={`https://www.tiktok.com/@${comment.username}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm font-semibold text-gray-900 hover:text-blue-600"
+                              >
+                                @{comment.username}
+                              </a>
+                              <span className="text-xs text-gray-400">
+                                {new Date(comment.createTime * 1000).toLocaleString('de-DE', {
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-800 whitespace-pre-line">{comment.text}</p>
+                            <div className="flex items-center gap-3 mt-1.5">
+                              {comment.likeCount > 0 && (
+                                <span className="text-xs text-gray-400">❤️ {comment.likeCount}</span>
+                              )}
+                              <button
+                                onClick={() =>
+                                  setReplyToCommentId(
+                                    replyToCommentId === comment.id ? null : comment.id
+                                  )
+                                }
+                                className={`text-xs font-medium transition-colors ${
+                                  replyToCommentId === comment.id
+                                    ? 'text-blue-600'
+                                    : 'text-gray-500 hover:text-blue-600'
+                                }`}
+                              >
+                                Antworten
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-4 text-center text-sm text-gray-500">
+                    Keine Kommentare vorhanden
                   </div>
                 )}
               </div>
@@ -554,32 +691,72 @@ export function ConversationView({
       </div>
 
       {/* AI Suggestions */}
-      {!isTikTok && (
+      {(!isTikTok || replyToCommentId) && (
         <SuggestionPanel
           interaction={interaction}
           onSelectSuggestion={handleSuggestionSelect}
         />
       )}
 
-      {/* Reply Input — hidden for TikTok */}
+      {/* Reply Input — TikTok comment reply or fallback */}
       {isTikTok ? (
         <div className="p-4 border-t border-gray-200 bg-white">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-500">
-              Antworten über die TikTok API nicht verfügbar
-            </p>
-            {interaction.context?.mediaPermalink && (
-              <a
-                href={interaction.context.mediaPermalink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
-              >
-                <ExternalLink size={14} />
-                Auf TikTok öffnen
-              </a>
-            )}
-          </div>
+          {replyToCommentId ? (
+            <>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xs text-gray-500">
+                  Antwort auf @{tiktokComments.find((c) => c.id === replyToCommentId)?.username}
+                </span>
+                <button
+                  onClick={() => setReplyToCommentId(null)}
+                  className="text-xs text-gray-400 hover:text-gray-600"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="flex gap-2">
+                <textarea
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  placeholder="Antwort schreiben..."
+                  className="flex-1 resize-none border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  rows={2}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && e.metaKey) {
+                      handleSend();
+                    }
+                  }}
+                />
+                <button
+                  onClick={handleSend}
+                  disabled={!replyText.trim() || sending}
+                  className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                >
+                  <Send size={18} />
+                </button>
+              </div>
+              <p className="text-xs text-gray-400 mt-2">⌘ + Enter zum Senden</p>
+            </>
+          ) : (
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-gray-500">
+                {interaction.type === 'post'
+                  ? 'Wähle einen Kommentar zum Antworten'
+                  : 'Auf TikTok öffnen um zu antworten'}
+              </p>
+              {interaction.context?.mediaPermalink && (
+                <a
+                  href={interaction.context.mediaPermalink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
+                >
+                  <ExternalLink size={14} />
+                  Auf TikTok öffnen
+                </a>
+              )}
+            </div>
+          )}
         </div>
       ) : (
         <div className="p-4 border-t border-gray-200 bg-white">

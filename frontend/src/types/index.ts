@@ -1,5 +1,5 @@
 export type Platform = 'instagram' | 'facebook' | 'tiktok';
-export type InteractionType = 'comment' | 'dm' | 'mention' | 'like';
+export type InteractionType = 'comment' | 'dm' | 'mention' | 'like' | 'post';
 export type InteractionStatus = 'unread' | 'read' | 'replied';
 export type AIProvider = 'claude' | 'openai';
 export type Tone = 'professional' | 'friendly' | 'casual';

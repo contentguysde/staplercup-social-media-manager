@@ -98,6 +98,7 @@
     "message": "Nachricht",
     "mention": "Erwähnung",
     "like": "Like",
+    "post": "Video",
     "replies": "{{count}} Antwort(en)",
     "markAsRead": "Als gelesen markieren",
     "markAsUnread": "Als ungelesen markieren",

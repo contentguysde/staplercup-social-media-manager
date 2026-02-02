@@ -98,6 +98,7 @@
     "message": "Message",
     "mention": "Mention",
     "like": "Like",
+    "post": "Video",
     "replies": "{{count}} reply(ies)",
     "markAsRead": "Mark as read",
     "markAsUnread": "Mark as unread",
