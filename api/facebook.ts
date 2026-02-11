@@ -465,7 +465,7 @@ async function fetchApiComments(credentials: { pageId: string; accessToken: stri
       {
         ...apiConfig,
         params: {
-          fields: 'id,message,created_time,permalink_url,attachments{media,type},comments.limit(20).order(reverse_chronological){id,message,from{id,name},created_time}',
+          fields: 'id,message,created_time,permalink_url,attachments{media,type},comments.limit(20).order(reverse_chronological){id,message,from{id,name},created_time,comments.limit(10){id,message,from{id,name},created_time}}',
           limit: 25,
           access_token: credentials.accessToken,
         },
@@ -514,6 +514,13 @@ async function fetchApiComments(credentials: { pageId: string; accessToken: stri
           mediaType,
         },
         source: 'api',
+        // Include replies (sub-comments) from the API - Facebook uses "comments" for replies
+        replies: comment.comments?.data?.map((reply: any) => ({
+          id: reply.id,
+          content: reply.message || '',
+          timestamp: reply.created_time,
+          isOwn: reply.from?.id === credentials.pageId,
+        })) || [],
       });
     }
   }

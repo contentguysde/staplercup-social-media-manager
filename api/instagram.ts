@@ -249,7 +249,7 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
         {
           ...apiConfig,
           params: {
-            fields: 'id,caption,media_url,thumbnail_url,permalink,timestamp,media_type,media_product_type,comments.limit(15).order(reverse_chronological){id,text,timestamp,from{id,username}}',
+            fields: 'id,caption,media_url,thumbnail_url,permalink,timestamp,media_type,media_product_type,comments.limit(15).order(reverse_chronological){id,text,timestamp,from{id,username},replies.limit(10){id,text,timestamp,from{id,username}}}',
             limit: 20,
             access_token: credentials.accessToken,
           },
@@ -315,6 +315,13 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
               mediaType: post.media_type, // IMAGE, VIDEO, CAROUSEL_ALBUM
               mediaProductType: post.media_product_type, // FEED, REELS, STORY
             },
+            // Include replies from the API (our responses to this comment)
+            replies: comment.replies?.data?.map((reply: any) => ({
+              id: reply.id,
+              content: reply.text,
+              timestamp: reply.timestamp,
+              isOwn: reply.from?.id === credentials.accountId,
+            })) || [],
           });
         }
       }
