@@ -38,6 +38,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return handleGetConversations(req, res);
         case 'messages':
           return handleGetMessages(req, res);
+        case 'debug-webhooks':
+          return handleDebugWebhooks(req, res);
         default:
           return res.status(404).json({ error: 'Endpoint nicht gefunden' });
       }
@@ -60,6 +62,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (error) {
     console.error('Instagram error:', error);
     return res.status(500).json({ error: 'Interner Serverfehler' });
+  }
+}
+
+// GET /api/instagram/debug-webhooks - Debug endpoint to check webhook merging
+async function handleDebugWebhooks(_req: VercelRequest, res: VercelResponse) {
+  const credentials = await getInstagramCredentials();
+
+  if (!credentials) {
+    return res.status(200).json({
+      success: false,
+      error: 'No credentials found',
+    });
+  }
+
+  try {
+    const webhookComments = await getWebhookComments(credentials);
+    return res.status(200).json({
+      success: true,
+      count: webhookComments.length,
+      comments: webhookComments.map(c => ({
+        id: c.id,
+        content: c.content?.substring(0, 50),
+        from: c.from?.username,
+        timestamp: c.timestamp,
+        hasContext: !!c.context?.mediaUrl,
+      })),
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+    });
   }
 }
 
@@ -336,11 +370,27 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
     // Tags/mentions and DMs are currently disabled for debugging
     // TODO: Re-enable once core functionality works
 
-    // Skip webhook processing for now - just return comments from media fetch
+    // Merge webhook comments (for comments on older posts not in Graph API response)
+    if (webhookResult.status === 'fulfilled' && Array.isArray(webhookResult.value)) {
+      const webhookComments = webhookResult.value;
+      const existingIds = new Set(interactions.map(i => i.id));
+
+      let addedFromWebhook = 0;
+      for (const webhookComment of webhookComments) {
+        // Only add if not already in Graph API results (deduplicate by comment_id)
+        if (!existingIds.has(webhookComment.id)) {
+          interactions.push(webhookComment);
+          existingIds.add(webhookComment.id);
+          addedFromWebhook++;
+        }
+      }
+      console.log(`Merged ${addedFromWebhook} webhook comments (${webhookComments.length} total in webhook table)`);
+    }
+
     // Sort by timestamp (newest first)
     interactions.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
-    console.log('RETURNING', interactions.length, 'interactions (comments only)');
+    console.log('RETURNING', interactions.length, 'interactions (Graph API + Webhook merged)');
 
     return res.status(200).json({
       success: true,
