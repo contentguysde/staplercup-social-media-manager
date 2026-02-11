@@ -169,37 +169,42 @@ async function verifyCommentExists(commentId: string, accessToken: string): Prom
       `https://graph.facebook.com/v18.0/${commentId}`,
       {
         params: {
-          fields: 'id',
+          fields: 'id,text',
           access_token: accessToken,
         },
-        timeout: 3000,
+        timeout: 5000,
       }
     );
     console.log(`Comment ${commentId} exists:`, response.data);
     return true;
   } catch (error: any) {
     const errorCode = error.response?.data?.error?.code;
-    const errorSubcode = error.response?.data?.error?.error_subcode;
-    const errorMessage = error.response?.data?.error?.message;
+    const errorMessage = error.response?.data?.error?.message || '';
+    const httpStatus = error.response?.status;
+
     console.log(`Comment ${commentId} verification error:`, {
       errorCode,
-      errorSubcode,
       errorMessage,
-      status: error.response?.status,
-      fullError: JSON.stringify(error.response?.data?.error || {})
+      httpStatus,
     });
-    // Error code 100 with specific message about "does not exist" = comment deleted
-    // Error code 100 without that message might be permission issue
-    if (errorCode === 100 && errorMessage?.toLowerCase().includes('does not exist')) {
-      console.log(`Comment ${commentId} confirmed DELETED (does not exist)`);
+
+    // Only mark as deleted if we're CERTAIN the comment doesn't exist
+    // Error code 100 with "does not exist" or "Unsupported get request" = definitely deleted
+    const isDefinitelyDeleted =
+      (errorCode === 100 && (
+        errorMessage.toLowerCase().includes('does not exist') ||
+        errorMessage.toLowerCase().includes('unsupported get request') ||
+        errorMessage.toLowerCase().includes('nonexisting field')
+      )) ||
+      httpStatus === 404;
+
+    if (isDefinitelyDeleted) {
+      console.log(`Comment ${commentId} confirmed DELETED`);
       return false;
     }
-    if (error.response?.status === 404) {
-      console.log(`Comment ${commentId} confirmed DELETED (404)`);
-      return false;
-    }
-    // For permission errors or other issues, assume comment still exists
-    console.log(`Comment ${commentId} assumed to exist (error not conclusive)`);
+
+    // For any other error (permission issues, rate limits, etc.), assume comment still exists
+    console.log(`Comment ${commentId} assumed to exist (verification inconclusive)`);
     return true;
   }
 }
