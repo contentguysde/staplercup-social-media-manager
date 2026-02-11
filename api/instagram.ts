@@ -285,8 +285,12 @@ async function getWebhookComments(credentials: { accountId: string; accessToken:
       verificationResults.filter(r => !r.exists).map(r => r.commentId)
     );
 
+    console.log(`Webhook comments: ${result.rows.length} total, ${commentsToVerify.length} verified, ${deletedCommentIds.size} deleted`);
+
     // Filter out deleted comments
     const validRows = result.rows.filter(row => !deletedCommentIds.has(row.comment_id));
+
+    console.log(`Valid rows after filtering: ${validRows.length}`);
 
     if (validRows.length === 0) {
       return [];
@@ -316,7 +320,7 @@ async function getWebhookComments(credentials: { accountId: string; accessToken:
     }
 
     // Transform webhook comments to interaction format
-    return validRows.map(row => {
+    const transformed = validRows.map(row => {
       const media = mediaCache[row.media_id] || {};
       return {
         id: row.comment_id,
@@ -343,6 +347,9 @@ async function getWebhookComments(credentials: { accountId: string; accessToken:
         source: 'webhook', // Mark as coming from webhook
       };
     });
+
+    console.log(`Returning ${transformed.length} webhook comments`);
+    return transformed;
   } catch (error: any) {
     // Table might not exist yet - that's fine
     if (error.message?.includes('does not exist')) {
