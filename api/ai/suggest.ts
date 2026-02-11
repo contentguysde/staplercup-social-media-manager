@@ -27,7 +27,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Support both old and new request formats
-    const { interaction, context, provider = 'openai', tone = 'friendly', customPrompt } = req.body;
+    const body = req.body || {};
+    const { interaction, context, provider = 'openai', tone = 'friendly', customPrompt } = body;
+
+    console.log('AI suggest request:', { provider, tone, hasContext: !!context, hasInteraction: !!interaction });
 
     // Build context from old or new format
     const contextData = context || {};
@@ -39,15 +42,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // If using Claude
     if (provider === 'claude') {
-      return handleClaudeGeneration(res, interactionData, contextData, tone, customPrompt);
+      return await handleClaudeGeneration(res, interactionData, contextData, tone, customPrompt);
     }
 
     // Default to OpenAI
-    return handleOpenAIGeneration(res, interactionData, contextData, tone, customPrompt);
+    return await handleOpenAIGeneration(res, interactionData, contextData, tone, customPrompt);
 
-  } catch (error) {
-    console.error('AI suggest error:', error);
-    return res.status(500).json({ error: 'Interner Serverfehler' });
+  } catch (error: any) {
+    console.error('AI suggest error:', error?.message || error);
+    return res.status(500).json({
+      success: false,
+      error: error?.message || 'Interner Serverfehler'
+    });
   }
 }
 
