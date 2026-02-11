@@ -38,6 +38,10 @@
       "destination": "/api/interactions?action=:path*"
     },
     {
+      "source": "/api/translate/:path*",
+      "destination": "/api/translate?action=:path*"
+    },
+    {
       "source": "/api/:path*",
       "destination": "/api/:path*"
     },

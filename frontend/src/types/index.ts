@@ -76,6 +76,7 @@ export interface SuggestionRequest {
   };
   provider: AIProvider;
   tone?: Tone;
+  customPrompt?: string;
 }
 
 export interface SuggestionResponse {

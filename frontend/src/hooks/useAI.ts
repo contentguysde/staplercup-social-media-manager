@@ -32,7 +32,7 @@ export function useAI(options: UseAIOptions = {}) {
   }, []);
 
   const generateSuggestions = useCallback(
-    async (interaction: Interaction) => {
+    async (interaction: Interaction, customPrompt?: string) => {
       try {
         setLoading(true);
         setError(null);
@@ -51,6 +51,7 @@ export function useAI(options: UseAIOptions = {}) {
           },
           provider,
           tone,
+          customPrompt,
         };
 
         const response = await aiApi.getSuggestions(request);

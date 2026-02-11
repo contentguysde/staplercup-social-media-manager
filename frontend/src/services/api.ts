@@ -635,6 +635,87 @@ export const interactionsApi = {
   },
 };
 
+// Translation API
+export interface TranslationResult {
+  translatedText: string;
+  sourceLanguage: string;
+  targetLanguage: string;
+}
+
+export interface LanguageDetectionResult {
+  language: string;
+  languageName: string;
+  confidence: number;
+}
+
+export interface StoredTranslation {
+  id: number;
+  originalText: string;
+  translatedText: string;
+  sourceLanguage: string;
+  targetLanguage: string;
+  contextType: string;
+  contextId: string | null;
+  platform: string | null;
+  createdAt: string;
+}
+
+export const translateApi = {
+  // Translate text to target language
+  translate: async (
+    text: string,
+    targetLanguage: string,
+    sourceLanguage?: string
+  ): Promise<TranslationResult> => {
+    const response = await api.post<APIResponse<TranslationResult>>('/translate/translate', {
+      text,
+      targetLanguage,
+      sourceLanguage,
+    });
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Übersetzung fehlgeschlagen');
+    }
+    return response.data.data!;
+  },
+
+  // Detect language of text
+  detect: async (text: string): Promise<LanguageDetectionResult> => {
+    const response = await api.post<APIResponse<LanguageDetectionResult>>('/translate/detect', {
+      text,
+    });
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Spracherkennung fehlgeschlagen');
+    }
+    return response.data.data!;
+  },
+
+  // Get cached translation from DB
+  getCached: async (id: number): Promise<StoredTranslation> => {
+    const response = await api.get<APIResponse<StoredTranslation>>(`/translate/cached?id=${id}`);
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Übersetzung nicht gefunden');
+    }
+    return response.data.data!;
+  },
+
+  // Store translation in DB
+  store: async (params: {
+    originalText: string;
+    translatedText: string;
+    sourceLanguage: string;
+    targetLanguage: string;
+    contextType: 'comment' | 'reply' | 'suggestion';
+    contextId?: string;
+    platform?: string;
+  }): Promise<{ translationId: number }> => {
+    const response = await api.post<APIResponse<{ translationId: number }>>('/translate/store', params);
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Speichern fehlgeschlagen');
+    }
+    return response.data.data!;
+  },
+};
+
 // Auth API
 export interface UserPublic {
   id: number;

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, ExternalLink, Heart, User, UserPlus, UserMinus, ChevronDown, Loader2, Film, Image, MessageCircle } from 'lucide-react';
+import { Send, ExternalLink, Heart, User, UserPlus, UserMinus, ChevronDown, Loader2, Film, Image, MessageCircle, Globe } from 'lucide-react';
 import { SuggestionPanel } from '../AIAssistant/SuggestionPanel';
-import { instagramApi, tiktokApi, type DMMessage, type TikTokComment } from '../../services/api';
+import { instagramApi, tiktokApi, translateApi, type DMMessage, type TikTokComment } from '../../services/api';
 import type { Interaction, AssignmentInfo, AssignableUser } from '../../types';
 
 interface ConversationViewProps {
@@ -68,8 +68,29 @@ export function ConversationView({
   const [replyText, setReplyText] = useState('');
   const [sending, setSending] = useState(false);
   const [sendSuccess, setSendSuccess] = useState(false);
-  const [localReplies, setLocalReplies] = useState<Array<{ id: string; content: string; timestamp: string; isOwn: boolean }>>([]);
+  const [localReplies, setLocalReplies] = useState<Array<{
+    id: string;
+    content: string;
+    timestamp: string;
+    isOwn: boolean;
+    germanText?: string;
+  }>>([]);
   const [showAssignDropdown, setShowAssignDropdown] = useState(false);
+
+  // Translation state for comments
+  const [showTranslation, setShowTranslation] = useState(false);
+  const [translatedComment, setTranslatedComment] = useState<string | null>(null);
+  const [translating, setTranslating] = useState(false);
+
+  // Pending translation info (from SuggestionPanel workflow)
+  const [pendingTranslation, setPendingTranslation] = useState<{
+    germanText: string;
+    translatedText: string;
+    targetLanguage: string;
+  } | null>(null);
+
+  // Toggle state for reply translations
+  const [showReplyTranslation, setShowReplyTranslation] = useState<Record<string, boolean>>({});
   const assignDropdownRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -92,7 +113,52 @@ export function ConversationView({
   useEffect(() => {
     setLocalReplies([]);
     setSendSuccess(false);
+    setShowTranslation(false);
+    setTranslatedComment(null);
+    setPendingTranslation(null);
+    setShowReplyTranslation({});
   }, [interaction.id]);
+
+  // Handle suggestion select with optional translation info
+  const handleSuggestionSelect = (suggestion: string, translationInfo?: {
+    germanText: string;
+    translatedText: string;
+    targetLanguage: string;
+  }) => {
+    setReplyText(suggestion);
+    if (translationInfo) {
+      setPendingTranslation(translationInfo);
+    } else {
+      setPendingTranslation(null);
+    }
+  };
+
+  // Handle translation toggle
+  const handleTranslateComment = async () => {
+    if (showTranslation) {
+      // Toggle off - show original
+      setShowTranslation(false);
+      return;
+    }
+
+    // If we already have the translation, just show it
+    if (translatedComment) {
+      setShowTranslation(true);
+      return;
+    }
+
+    // Translate the comment to German
+    try {
+      setTranslating(true);
+      const result = await translateApi.translate(interaction.content, 'de');
+      setTranslatedComment(result.translatedText);
+      setShowTranslation(true);
+    } catch (error) {
+      console.error('Translation failed:', error);
+    } finally {
+      setTranslating(false);
+    }
+  };
 
   // Load DM messages when conversation changes
   useEffect(() => {
@@ -190,15 +256,34 @@ export function ConversationView({
       } else {
         await onSendReply(messageToSend);
 
+        // Store translation in DB if this was a translated reply
+        if (pendingTranslation) {
+          try {
+            await translateApi.store({
+              originalText: pendingTranslation.germanText,
+              translatedText: pendingTranslation.translatedText,
+              sourceLanguage: 'de',
+              targetLanguage: pendingTranslation.targetLanguage,
+              contextType: 'reply',
+              contextId: interaction.id,
+              platform: interaction.platform,
+            });
+          } catch (err) {
+            console.error('Failed to store translation:', err);
+          }
+        }
+
         // Add the reply to local state so it appears in the thread immediately
         const newReply = {
           id: `local_${Date.now()}`,
           content: messageToSend,
           timestamp: new Date().toISOString(),
           isOwn: true,
+          germanText: pendingTranslation?.germanText,
         };
         setLocalReplies(prev => [...prev, newReply]);
         setReplyText('');
+        setPendingTranslation(null);
         setSendSuccess(true);
       }
 
@@ -217,10 +302,6 @@ export function ConversationView({
     if (interaction.context?.mediaPermalink) {
       window.open(interaction.context.mediaPermalink, '_blank');
     }
-  };
-
-  const handleSuggestionSelect = (suggestion: string) => {
-    setReplyText(suggestion);
   };
 
   // Platform-specific profile URL
@@ -497,6 +578,40 @@ export function ConversationView({
 
                     {/* Comment text */}
                     <p className="text-gray-800 whitespace-pre-line">{interaction.content}</p>
+
+                    {/* Translation toggle for non-DE/EN comments */}
+                    {interaction.labels?.language === 'other' && (
+                      <div className="mt-3">
+                        <button
+                          onClick={handleTranslateComment}
+                          disabled={translating}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors disabled:opacity-50"
+                        >
+                          {translating ? (
+                            <>
+                              <Loader2 size={12} className="animate-spin" />
+                              Übersetze...
+                            </>
+                          ) : (
+                            <>
+                              <Globe size={12} />
+                              {showTranslation ? 'Original anzeigen' : 'Auf Deutsch anzeigen'}
+                            </>
+                          )}
+                        </button>
+
+                        {/* Translated text */}
+                        {showTranslation && translatedComment && (
+                          <div className="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                            <p className="text-xs text-gray-500 mb-1 flex items-center gap-1">
+                              <Globe size={10} />
+                              Deutsche Übersetzung
+                            </p>
+                            <p className="text-gray-800 whitespace-pre-line">{translatedComment}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Like button - opens Instagram since API doesn't support liking comments */}
@@ -547,7 +662,34 @@ export function ConversationView({
                             Antwort
                           </span>
                         </div>
-                        <p className="text-gray-800 text-sm whitespace-pre-line">{reply.content}</p>
+                        {/* Reply text - show translation toggle for translated replies */}
+                        {showReplyTranslation[reply.id] && reply.germanText ? (
+                          <div className="space-y-2">
+                            <div className="p-2 bg-gray-100 rounded-lg border border-gray-200">
+                              <p className="text-xs text-gray-500 mb-1 flex items-center gap-1">
+                                <Globe size={10} />
+                                Deutsche Version
+                              </p>
+                              <p className="text-gray-800 text-sm whitespace-pre-line">{reply.germanText}</p>
+                            </div>
+                            <p className="text-gray-600 text-sm whitespace-pre-line">{reply.content}</p>
+                          </div>
+                        ) : (
+                          <p className="text-gray-800 text-sm whitespace-pre-line">{reply.content}</p>
+                        )}
+                        {/* Translation toggle for own translated replies */}
+                        {reply.isOwn && reply.germanText && (
+                          <button
+                            onClick={() => setShowReplyTranslation(prev => ({
+                              ...prev,
+                              [reply.id]: !prev[reply.id]
+                            }))}
+                            className="mt-2 inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-gray-500 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"
+                          >
+                            <Globe size={10} />
+                            {showReplyTranslation[reply.id] ? 'Übersetzung ausblenden' : 'Deutsche Version anzeigen'}
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}
