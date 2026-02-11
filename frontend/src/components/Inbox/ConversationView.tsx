@@ -67,6 +67,8 @@ export function ConversationView({
 }: ConversationViewProps) {
   const [replyText, setReplyText] = useState('');
   const [sending, setSending] = useState(false);
+  const [sendSuccess, setSendSuccess] = useState(false);
+  const [localReplies, setLocalReplies] = useState<Array<{ id: string; content: string; timestamp: string; isOwn: boolean }>>([]);
   const [showAssignDropdown, setShowAssignDropdown] = useState(false);
   const assignDropdownRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -85,6 +87,12 @@ export function ConversationView({
   const [tiktokComments, setTiktokComments] = useState<TikTokComment[]>([]);
   const [loadingComments, setLoadingComments] = useState(false);
   const [replyToCommentId, setReplyToCommentId] = useState<string | null>(null);
+
+  // Reset local state when interaction changes
+  useEffect(() => {
+    setLocalReplies([]);
+    setSendSuccess(false);
+  }, [interaction.id]);
 
   // Load DM messages when conversation changes
   useEffect(() => {
@@ -161,23 +169,44 @@ export function ConversationView({
   const handleSend = async () => {
     if (!replyText.trim() || sending) return;
 
+    const messageToSend = replyText.trim();
+
     try {
       setSending(true);
+      setSendSuccess(false);
+
       if (isTikTok && replyToCommentId) {
         // TikTok: reply directly to the selected comment via Business API
         await tiktokApi.replyToComment(
           replyToCommentId,
-          replyText,
+          messageToSend,
           interaction.context?.mediaId
         );
         setReplyText('');
         setReplyToCommentId(null);
         // Reload comments to show the new reply
         await loadTikTokComments();
+        setSendSuccess(true);
       } else {
-        await onSendReply(replyText);
+        await onSendReply(messageToSend);
+
+        // Add the reply to local state so it appears in the thread immediately
+        const newReply = {
+          id: `local_${Date.now()}`,
+          content: messageToSend,
+          timestamp: new Date().toISOString(),
+          isOwn: true,
+        };
+        setLocalReplies(prev => [...prev, newReply]);
         setReplyText('');
+        setSendSuccess(true);
       }
+
+      // Auto-hide success message after 3 seconds
+      setTimeout(() => setSendSuccess(false), 3000);
+    } catch (error) {
+      console.error('Failed to send reply:', error);
+      // Don't clear the text on error so user can retry
     } finally {
       setSending(false);
     }
@@ -664,8 +693,8 @@ export function ConversationView({
               </div>
             )}
 
-            {/* Replies */}
-            {interaction.replies?.map((reply) => (
+            {/* Replies (from API and locally added) */}
+            {[...(interaction.replies || []), ...localReplies].map((reply) => (
               <div key={reply.id} className={`flex ${reply.isOwn ? 'justify-end' : 'justify-start'}`}>
                 <div
                   className={`max-w-[80%] rounded-2xl px-4 py-2 ${
@@ -719,7 +748,8 @@ export function ConversationView({
                   value={replyText}
                   onChange={(e) => setReplyText(e.target.value)}
                   placeholder="Antwort schreiben..."
-                  className="flex-1 resize-none border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  disabled={sending}
+                  className="flex-1 resize-none border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed transition-colors"
                   rows={2}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && e.metaKey) {
@@ -732,10 +762,16 @@ export function ConversationView({
                   disabled={!replyText.trim() || sending}
                   className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
                 >
-                  <Send size={18} />
+                  {sending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
                 </button>
               </div>
-              <p className="text-xs text-gray-400 mt-2">⌘ + Enter zum Senden</p>
+              <p className="text-xs text-gray-400 mt-2">
+                {sendSuccess ? (
+                  <span className="text-green-600 font-medium">✓ Nachricht erfolgreich gesendet</span>
+                ) : (
+                  '⌘ + Enter zum Senden'
+                )}
+              </p>
             </>
           ) : (
             <div className="flex items-center justify-between">
@@ -765,7 +801,8 @@ export function ConversationView({
               value={replyText}
               onChange={(e) => setReplyText(e.target.value)}
               placeholder="Deine Antwort schreiben..."
-              className="flex-1 resize-none border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              disabled={sending}
+              className="flex-1 resize-none border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed transition-colors"
               rows={2}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && e.metaKey) {
@@ -778,11 +815,17 @@ export function ConversationView({
               disabled={!replyText.trim() || sending}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
             >
-              <Send size={18} />
-              <span>Senden</span>
+              {sending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+              <span>{sending ? 'Sende...' : 'Senden'}</span>
             </button>
           </div>
-          <p className="text-xs text-gray-400 mt-2">⌘ + Enter zum Senden</p>
+          <p className="text-xs text-gray-400 mt-2">
+            {sendSuccess ? (
+              <span className="text-green-600 font-medium">✓ Nachricht erfolgreich gesendet</span>
+            ) : (
+              '⌘ + Enter zum Senden'
+            )}
+          </p>
         </div>
       )}
     </div>
