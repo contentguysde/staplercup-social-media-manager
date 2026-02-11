@@ -511,6 +511,40 @@ export function ConversationView({
                   )}
                 </div>
               </div>
+
+              {/* Our Replies - displayed directly below the comment */}
+              {[...(interaction.replies || []), ...localReplies].length > 0 && (
+                <div className="border-t border-gray-100">
+                  {[...(interaction.replies || []), ...localReplies].map((reply) => (
+                    <div key={reply.id} className="p-4 flex items-start gap-3 bg-blue-50/50">
+                      {/* StaplerCup Avatar */}
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 p-0.5">
+                        <div className="w-full h-full rounded-full bg-white flex items-center justify-center">
+                          <span className="text-xs font-bold text-gray-600">SC</span>
+                        </div>
+                      </div>
+                      {/* Reply content */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-semibold text-gray-900 text-sm">staplercup_official</span>
+                          <span className="text-xs text-gray-400">
+                            {new Date(reply.timestamp).toLocaleString('de-DE', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </span>
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                            Antwort
+                          </span>
+                        </div>
+                        <p className="text-gray-800 text-sm whitespace-pre-line">{reply.content}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             )}
 
@@ -692,29 +726,6 @@ export function ConversationView({
                 )}
               </div>
             )}
-
-            {/* Replies (from API and locally added) */}
-            {[...(interaction.replies || []), ...localReplies].map((reply) => (
-              <div key={reply.id} className={`flex ${reply.isOwn ? 'justify-end' : 'justify-start'}`}>
-                <div
-                  className={`max-w-[80%] rounded-2xl px-4 py-2 ${
-                    reply.isOwn
-                      ? 'bg-blue-600 text-white rounded-br-md'
-                      : 'bg-white border border-gray-200 text-gray-900 rounded-bl-md'
-                  }`}
-                >
-                  <p className="text-sm whitespace-pre-line">{reply.content}</p>
-                  <p className={`text-xs mt-1 ${reply.isOwn ? 'text-blue-200' : 'text-gray-400'}`}>
-                    {new Date(reply.timestamp).toLocaleString('de-DE', {
-                      day: '2-digit',
-                      month: '2-digit',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </p>
-                </div>
-              </div>
-            ))}
           </>
         )}
       </div>
