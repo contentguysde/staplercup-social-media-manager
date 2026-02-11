@@ -29,6 +29,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (action === 'debug') {
       return handleDebugQuery(res);
     }
+    if (action === 'cleanup-test') {
+      return handleCleanupTestComments(res);
+    }
     return handleVerification(req, res, platform);
   }
 
@@ -209,6 +212,35 @@ async function handleDebugQuery(res: VercelResponse) {
         note: 'Table does not exist yet - no webhooks received'
       });
     }
+    return res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+}
+
+/**
+ * Cleanup test comments from database
+ * Call: GET /api/webhooks?action=cleanup-test
+ */
+async function handleCleanupTestComments(res: VercelResponse) {
+  try {
+    // Delete comments with test-related comment_ids
+    const result = await sql`
+      DELETE FROM webhook_comments
+      WHERE comment_id LIKE 'test%'
+         OR comment_id LIKE 'manual%'
+         OR comment_id LIKE 'webhook_%'
+         OR from_username = 'test'
+      RETURNING comment_id, from_username
+    `;
+
+    return res.status(200).json({
+      success: true,
+      deleted: result.rows.length,
+      deletedComments: result.rows
+    });
+  } catch (error: any) {
     return res.status(500).json({
       success: false,
       error: error.message
