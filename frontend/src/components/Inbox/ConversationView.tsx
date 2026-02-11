@@ -116,6 +116,7 @@ export function ConversationView({
 
   // Reset local state when interaction changes
   useEffect(() => {
+    setReplyText(''); // Clear reply text field
     setLocalReplies([]);
     setSendSuccess(false);
     setShowTranslation(false);
@@ -125,6 +126,7 @@ export function ConversationView({
     setOriginalReplyText(null);
     setShowReplyTranslation({});
     setCommentLanguage(null);
+    setTranslatingReply(false);
   }, [interaction.id]);
 
   // Automatically detect language of incoming comment

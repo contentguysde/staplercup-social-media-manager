@@ -23,6 +23,7 @@ export function SuggestionPanel({ interaction, onSelectSuggestion, onLanguageDet
     loading,
     error,
     generateSuggestions,
+    clearSuggestions,
     availableProviders,
   } = useAI();
 
@@ -37,7 +38,8 @@ export function SuggestionPanel({ interaction, onSelectSuggestion, onLanguageDet
     setSelectedIndex(null);
     setCustomPrompt('');
     setShowPromptInput(false);
-  }, [interaction.id]);
+    clearSuggestions(); // Clear AI suggestions from previous interaction
+  }, [interaction.id, clearSuggestions]);
 
   // Update workflow state based on loading/suggestions/error
   useEffect(() => {
