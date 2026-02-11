@@ -381,25 +381,16 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
       const webhookComments = webhookResult.value;
       const existingIds = new Set(interactions.map(i => i.id));
 
-      console.log('MERGE DEBUG: Graph API returned', interactions.length, 'comments');
-      console.log('MERGE DEBUG: Webhook has', webhookComments.length, 'comments');
-      console.log('MERGE DEBUG: Existing IDs sample:', Array.from(existingIds).slice(0, 5));
-
       let addedFromWebhook = 0;
-      let skippedDuplicates = 0;
       for (const webhookComment of webhookComments) {
         // Only add if not already in Graph API results (deduplicate by comment_id)
         if (!existingIds.has(webhookComment.id)) {
           interactions.push(webhookComment);
           existingIds.add(webhookComment.id);
           addedFromWebhook++;
-          console.log('MERGE DEBUG: Added webhook comment:', webhookComment.id);
-        } else {
-          skippedDuplicates++;
-          console.log('MERGE DEBUG: Skipped duplicate:', webhookComment.id);
         }
       }
-      console.log(`Merged ${addedFromWebhook} webhook comments, skipped ${skippedDuplicates} duplicates (${webhookComments.length} total in webhook table)`);
+      console.log(`Merged ${addedFromWebhook} webhook comments (${webhookComments.length} total in webhook table)`);
     }
 
     // Sort by timestamp (newest first)
