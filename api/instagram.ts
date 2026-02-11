@@ -179,15 +179,27 @@ async function verifyCommentExists(commentId: string, accessToken: string): Prom
     return true;
   } catch (error: any) {
     const errorCode = error.response?.data?.error?.code;
+    const errorSubcode = error.response?.data?.error?.error_subcode;
     const errorMessage = error.response?.data?.error?.message;
-    console.log(`Comment ${commentId} verification error:`, { errorCode, errorMessage, status: error.response?.status });
-    // Error code 100 = "Unsupported get request" (comment deleted or doesn't exist)
-    // Error code 190 = Invalid access token (shouldn't mark as deleted)
-    if (errorCode === 100 || error.response?.status === 404) {
-      console.log(`Comment ${commentId} marked as DELETED`);
+    console.log(`Comment ${commentId} verification error:`, {
+      errorCode,
+      errorSubcode,
+      errorMessage,
+      status: error.response?.status,
+      fullError: JSON.stringify(error.response?.data?.error || {})
+    });
+    // Error code 100 with specific message about "does not exist" = comment deleted
+    // Error code 100 without that message might be permission issue
+    if (errorCode === 100 && errorMessage?.toLowerCase().includes('does not exist')) {
+      console.log(`Comment ${commentId} confirmed DELETED (does not exist)`);
       return false;
     }
-    // For other errors, assume comment still exists to avoid false positives
+    if (error.response?.status === 404) {
+      console.log(`Comment ${commentId} confirmed DELETED (404)`);
+      return false;
+    }
+    // For permission errors or other issues, assume comment still exists
+    console.log(`Comment ${commentId} assumed to exist (error not conclusive)`);
     return true;
   }
 }
