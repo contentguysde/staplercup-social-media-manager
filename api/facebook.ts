@@ -520,6 +520,10 @@ async function fetchApiComments(credentials: { pageId: string; accessToken: stri
           content: reply.message || '',
           timestamp: reply.created_time,
           isOwn: reply.from?.id === credentials.pageId,
+          from: {
+            id: reply.from?.id || 'unknown',
+            username: reply.from?.name || 'Unbekannt',
+          },
         })) || [],
       });
     }

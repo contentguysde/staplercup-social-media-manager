@@ -512,21 +512,29 @@ export function ConversationView({
                 </div>
               </div>
 
-              {/* Our Replies - displayed directly below the comment */}
+              {/* Replies - displayed directly below the comment */}
               {[...(interaction.replies || []), ...localReplies].length > 0 && (
                 <div className="border-t border-gray-100">
-                  {[...(interaction.replies || []), ...localReplies].map((reply) => (
-                    <div key={reply.id} className="p-4 flex items-start gap-3 bg-blue-50/50">
-                      {/* StaplerCup Avatar */}
-                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 p-0.5">
-                        <div className="w-full h-full rounded-full bg-white flex items-center justify-center">
-                          <span className="text-xs font-bold text-gray-600">SC</span>
+                  {[...(interaction.replies || []), ...localReplies].map((reply: any) => (
+                    <div key={reply.id} className={`p-4 flex items-start gap-3 ${reply.isOwn ? 'bg-blue-50/50' : 'bg-gray-50/50'}`}>
+                      {/* Avatar - different for own replies vs others */}
+                      {reply.isOwn ? (
+                        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 p-0.5">
+                          <div className="w-full h-full rounded-full bg-white flex items-center justify-center">
+                            <span className="text-xs font-bold text-gray-600">SC</span>
+                          </div>
                         </div>
-                      </div>
+                      ) : (
+                        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center">
+                          <User size={16} className="text-gray-600" />
+                        </div>
+                      )}
                       {/* Reply content */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="font-semibold text-gray-900 text-sm">staplercup_official</span>
+                          <span className="font-semibold text-gray-900 text-sm">
+                            {reply.isOwn ? 'staplercup_official' : `@${reply.from?.username || 'Unbekannt'}`}
+                          </span>
                           <span className="text-xs text-gray-400">
                             {new Date(reply.timestamp).toLocaleString('de-DE', {
                               day: '2-digit',
@@ -535,7 +543,7 @@ export function ConversationView({
                               minute: '2-digit',
                             })}
                           </span>
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${reply.isOwn ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-600'}`}>
                             Antwort
                           </span>
                         </div>

@@ -315,12 +315,16 @@ async function handleInteractions(_req: VercelRequest, res: VercelResponse) {
               mediaType: post.media_type, // IMAGE, VIDEO, CAROUSEL_ALBUM
               mediaProductType: post.media_product_type, // FEED, REELS, STORY
             },
-            // Include replies from the API (our responses to this comment)
+            // Include replies from the API (responses to this comment)
             replies: comment.replies?.data?.map((reply: any) => ({
               id: reply.id,
               content: reply.text,
               timestamp: reply.timestamp,
               isOwn: reply.from?.id === credentials.accountId,
+              from: {
+                id: reply.from?.id || 'unknown',
+                username: reply.from?.username || 'Unbekannt',
+              },
             })) || [],
           });
         }
