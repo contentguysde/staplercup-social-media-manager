@@ -160,6 +160,51 @@ async function handleStatus(_req: VercelRequest, res: VercelResponse) {
 }
 
 /**
+ * Verify if a comment still exists via Graph API
+ * Returns true if comment exists, false if deleted/not found
+ */
+async function verifyCommentExists(commentId: string, accessToken: string): Promise<boolean> {
+  try {
+    await axios.get(
+      `https://graph.facebook.com/v18.0/${commentId}`,
+      {
+        params: {
+          fields: 'id',
+          access_token: accessToken,
+        },
+        timeout: 3000,
+      }
+    );
+    return true;
+  } catch (error: any) {
+    const errorCode = error.response?.data?.error?.code;
+    // Error code 100 = "Unsupported get request" (comment deleted or doesn't exist)
+    // Error code 190 = Invalid access token (shouldn't mark as deleted)
+    if (errorCode === 100 || error.response?.status === 404) {
+      return false;
+    }
+    // For other errors, assume comment still exists to avoid false positives
+    return true;
+  }
+}
+
+/**
+ * Mark a comment as deleted in the webhook_comments table
+ */
+async function markCommentAsDeleted(commentId: string): Promise<void> {
+  try {
+    await sql`
+      UPDATE webhook_comments
+      SET deleted = TRUE, updated_at = CURRENT_TIMESTAMP
+      WHERE comment_id = ${commentId}
+    `;
+    console.log(`Marked comment ${commentId} as deleted`);
+  } catch (error) {
+    console.error(`Error marking comment ${commentId} as deleted:`, error);
+  }
+}
+
+/**
  * Fetch comments from webhook table (real-time notifications)
  * These are comments that were pushed to us via Instagram webhooks
  */
@@ -188,8 +233,40 @@ async function getWebhookComments(credentials: { accountId: string; accessToken:
       return [];
     }
 
+    // Verify comments still exist (check a sample to avoid too many API calls)
+    // Only verify comments that are less than 7 days old to avoid unnecessary API calls for old data
+    const recentComments = result.rows.filter(row => {
+      const commentAge = Date.now() - new Date(row.timestamp).getTime();
+      const sevenDays = 7 * 24 * 60 * 60 * 1000;
+      return commentAge < sevenDays;
+    });
+
+    // Verify up to 10 recent comments in parallel
+    const commentsToVerify = recentComments.slice(0, 10);
+    const verificationResults = await Promise.all(
+      commentsToVerify.map(async (row) => {
+        const exists = await verifyCommentExists(row.comment_id, credentials.accessToken);
+        if (!exists) {
+          await markCommentAsDeleted(row.comment_id);
+        }
+        return { commentId: row.comment_id, exists };
+      })
+    );
+
+    // Create a set of deleted comment IDs
+    const deletedCommentIds = new Set(
+      verificationResults.filter(r => !r.exists).map(r => r.commentId)
+    );
+
+    // Filter out deleted comments
+    const validRows = result.rows.filter(row => !deletedCommentIds.has(row.comment_id));
+
+    if (validRows.length === 0) {
+      return [];
+    }
+
     // We need to fetch media details for each unique media_id to get context
-    const mediaIds = [...new Set(result.rows.map(r => r.media_id).filter(Boolean))];
+    const mediaIds = [...new Set(validRows.map(r => r.media_id).filter(Boolean))];
     const mediaCache: Record<string, any> = {};
 
     // Fetch media details in batches (to avoid too many API calls)
@@ -212,7 +289,7 @@ async function getWebhookComments(credentials: { accountId: string; accessToken:
     }
 
     // Transform webhook comments to interaction format
-    return result.rows.map(row => {
+    return validRows.map(row => {
       const media = mediaCache[row.media_id] || {};
       return {
         id: row.comment_id,
