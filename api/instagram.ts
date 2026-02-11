@@ -165,28 +165,21 @@ async function handleStatus(_req: VercelRequest, res: VercelResponse) {
  */
 async function verifyCommentExists(commentId: string, accessToken: string): Promise<boolean> {
   try {
-    const response = await axios.get(
+    await axios.get(
       `https://graph.facebook.com/v18.0/${commentId}`,
       {
         params: {
-          fields: 'id,text',
+          fields: 'id',
           access_token: accessToken,
         },
         timeout: 5000,
       }
     );
-    console.log(`Comment ${commentId} exists:`, response.data);
     return true;
   } catch (error: any) {
     const errorCode = error.response?.data?.error?.code;
     const errorMessage = error.response?.data?.error?.message || '';
     const httpStatus = error.response?.status;
-
-    console.log(`Comment ${commentId} verification error:`, {
-      errorCode,
-      errorMessage,
-      httpStatus,
-    });
 
     // Only mark as deleted if we're CERTAIN the comment doesn't exist
     // Error code 100 with "does not exist" or "Unsupported get request" = definitely deleted
@@ -199,12 +192,10 @@ async function verifyCommentExists(commentId: string, accessToken: string): Prom
       httpStatus === 404;
 
     if (isDefinitelyDeleted) {
-      console.log(`Comment ${commentId} confirmed DELETED`);
       return false;
     }
 
     // For any other error (permission issues, rate limits, etc.), assume comment still exists
-    console.log(`Comment ${commentId} assumed to exist (verification inconclusive)`);
     return true;
   }
 }
@@ -285,12 +276,8 @@ async function getWebhookComments(credentials: { accountId: string; accessToken:
       verificationResults.filter(r => !r.exists).map(r => r.commentId)
     );
 
-    console.log(`Webhook comments: ${result.rows.length} total, ${commentsToVerify.length} verified, ${deletedCommentIds.size} deleted`);
-
     // Filter out deleted comments
     const validRows = result.rows.filter(row => !deletedCommentIds.has(row.comment_id));
-
-    console.log(`Valid rows after filtering: ${validRows.length}`);
 
     if (validRows.length === 0) {
       return [];
@@ -348,7 +335,6 @@ async function getWebhookComments(credentials: { accountId: string; accessToken:
       };
     });
 
-    console.log(`Returning ${transformed.length} webhook comments`);
     return transformed;
   } catch (error: any) {
     // Table might not exist yet - that's fine
