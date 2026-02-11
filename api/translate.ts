@@ -121,7 +121,7 @@ async function handleTranslate(req: VercelRequest, res: VercelResponse) {
 
     // Clean up common prefixes that GPT might add
     translatedText = translatedText
-      .replace(/^(Übersetzung|Translation|Auf Deutsch|In German|In English):\s*/i, '')
+      .replace(/^(Die\s+)?(Übersetzung|Translation|Auf Deutsch|In German|In English)(\s+ins?\s+\w+)?(\s+lautet)?[:\s]*/i, '')
       .replace(/^["„"']|["„"']$/g, '')
       .trim();
 
