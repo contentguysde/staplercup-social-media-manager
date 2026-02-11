@@ -32,6 +32,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (action === 'cleanup-test') {
       return handleCleanupTestComments(res);
     }
+    if (action === 'mark-deleted') {
+      const commentId = req.query.commentId as string;
+      return handleMarkDeleted(res, commentId);
+    }
     return handleVerification(req, res, platform);
   }
 
@@ -212,6 +216,36 @@ async function handleDebugQuery(res: VercelResponse) {
         note: 'Table does not exist yet - no webhooks received'
       });
     }
+    return res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+}
+
+/**
+ * Mark a specific comment as deleted
+ * Call: GET /api/webhooks?action=mark-deleted&commentId=xxx
+ */
+async function handleMarkDeleted(res: VercelResponse, commentId: string) {
+  if (!commentId) {
+    return res.status(400).json({ success: false, error: 'commentId required' });
+  }
+
+  try {
+    const result = await sql`
+      UPDATE webhook_comments
+      SET deleted = TRUE, updated_at = CURRENT_TIMESTAMP
+      WHERE comment_id = ${commentId}
+      RETURNING comment_id, from_username
+    `;
+
+    return res.status(200).json({
+      success: true,
+      updated: result.rows.length,
+      comment: result.rows[0] || null
+    });
+  } catch (error: any) {
     return res.status(500).json({
       success: false,
       error: error.message
