@@ -125,7 +125,7 @@ async function handleOpenAIGeneration(
 
   try {
     // Step 1: Detect language of the original message
-    console.log('OpenAI handler: Detecting language');
+    console.log('OpenAI handler: Detecting language for message:', originalMessage.substring(0, 100));
     const detectResponse = await axios.post(
       'https://api.openai.com/v1/chat/completions',
       {
@@ -133,15 +133,31 @@ async function handleOpenAIGeneration(
         messages: [
           {
             role: 'system',
-            content: 'You are a language detection assistant. Respond with ONLY the ISO 639-1 language code (e.g., "de", "en", "pt", "es", "fr"). Nothing else.'
+            content: 'Detect the language of the given text. Reply with ONLY the 2-letter ISO 639-1 code. Examples: de, en, pt, es, fr, it. Do not include any other text, punctuation, or explanation.'
           },
           {
             role: 'user',
-            content: `What language is this text written in? "${originalMessage}"`
+            content: 'Hallo, wie geht es dir?'
+          },
+          {
+            role: 'assistant',
+            content: 'de'
+          },
+          {
+            role: 'user',
+            content: 'Hello, how are you doing today?'
+          },
+          {
+            role: 'assistant',
+            content: 'en'
+          },
+          {
+            role: 'user',
+            content: originalMessage
           },
         ],
         temperature: 0,
-        max_tokens: 10,
+        max_tokens: 5,
       },
       {
         headers: {
@@ -151,11 +167,28 @@ async function handleOpenAIGeneration(
       }
     );
 
-    const detectedLanguage = (detectResponse.data.choices[0]?.message?.content || 'de').trim().toLowerCase().substring(0, 2);
+    const rawDetection = (detectResponse.data.choices[0]?.message?.content || 'de').trim().toLowerCase();
+    console.log('OpenAI handler: Raw language detection response:', rawDetection);
+
+    // Extract language code - handle cases where GPT returns more than just the code
+    // Look for common ISO 639-1 codes in the response
+    let detectedLanguage = 'de';
+    const langMatch = rawDetection.match(/\b(de|en|pt|es|fr|it|nl|pl|ru|zh|ja|ko|ar|tr|sv|da|no|fi)\b/);
+    if (langMatch) {
+      detectedLanguage = langMatch[1];
+    } else if (rawDetection.length === 2) {
+      detectedLanguage = rawDetection;
+    } else if (rawDetection.includes('english')) {
+      detectedLanguage = 'en';
+    } else if (rawDetection.includes('german') || rawDetection.includes('deutsch')) {
+      detectedLanguage = 'de';
+    }
+
     console.log('OpenAI handler: Detected language:', detectedLanguage);
 
     // Determine response language: DE for German/other, EN for English
     const responseLanguage = detectedLanguage === 'en' ? 'en' : 'de';
+    console.log('OpenAI handler: Will generate suggestions in:', responseLanguage);
     const needsTranslation = detectedLanguage !== 'de' && detectedLanguage !== 'en';
 
     console.log('OpenAI handler: Response language:', responseLanguage, 'Needs translation:', needsTranslation);
