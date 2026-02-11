@@ -11,6 +11,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).end();
   }
 
+  // Allow debug-webhooks endpoint without auth (temporary for debugging)
+  const action = (req.query.action as string) || '';
+  if (action === 'debug-webhooks' && req.method === 'GET') {
+    return handleDebugWebhooks(req, res);
+  }
+
   try {
     // Verify authentication
     const token = getTokenFromHeader(req.headers.authorization as string);
