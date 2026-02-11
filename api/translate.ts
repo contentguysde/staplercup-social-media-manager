@@ -130,18 +130,26 @@ You must output text in ${targetLangName} (${targetLanguage === 'de' ? 'German' 
     let translatedText = response.data.choices[0]?.message?.content?.trim() || '';
     console.log('Translation response:', { translatedTextLength: translatedText.length, translatedTextPreview: translatedText.substring(0, 50) });
 
-    // Check if translation actually happened - if output equals input, try again with explicit instruction
+    // Check if translation actually happened - if output equals input or is empty, try alternative approach
     if (translatedText === text || translatedText.length === 0) {
-      console.log('Translation returned same text or empty, retrying with explicit instruction');
+      console.log('Translation returned same text or empty, trying alternative prompt');
+
+      // Use a more conversational approach that might work better for informal/slang text
       const retryResponse = await axios.post(
         'https://api.openai.com/v1/chat/completions',
         {
           model: openaiModel,
           messages: [
-            { role: 'system', content: `You are a translator. Translate ANY text to ${targetLangName}. You MUST output ${targetLangName} text only.` },
-            { role: 'user', content: `What does this mean in ${targetLangName}? Provide ONLY the ${targetLangName} translation:\n\n${text}` },
+            {
+              role: 'system',
+              content: `You are a translator specializing in social media content. Translate text to ${targetLangName}, including slang, informal language, and incomplete sentences. Always provide your best translation attempt, even if the meaning is unclear. Output ONLY the ${targetLangName} translation.`
+            },
+            {
+              role: 'user',
+              content: `Translate this social media comment to ${targetLangName}. If it's slang or informal, translate the meaning/intent:\n\n"${text}"`
+            },
           ],
-          temperature: 0.7,
+          temperature: 0.8,
           max_tokens: 1024,
         },
         {
@@ -151,8 +159,44 @@ You must output text in ${targetLangName} (${targetLanguage === 'de' ? 'German' 
           },
         }
       );
-      translatedText = retryResponse.data.choices[0]?.message?.content?.trim() || '[Übersetzung nicht möglich]';
-      console.log('Retry translation response:', translatedText.substring(0, 50));
+
+      const retryText = retryResponse.data.choices[0]?.message?.content?.trim() || '';
+      console.log('Retry translation response:', retryText.substring(0, 100));
+
+      // Use retry result if it's different from input and not empty
+      if (retryText && retryText !== text) {
+        translatedText = retryText;
+      } else {
+        // Last resort: ask for interpretation
+        console.log('Retry also returned same text, asking for interpretation');
+        const interpretResponse = await axios.post(
+          'https://api.openai.com/v1/chat/completions',
+          {
+            model: openaiModel,
+            messages: [
+              {
+                role: 'system',
+                content: `You help interpret and translate social media content to ${targetLangName}. Even if text seems like nonsense or is hard to translate, provide your best interpretation in ${targetLangName}.`
+              },
+              {
+                role: 'user',
+                content: `This is a social media comment. Interpret it and respond in ${targetLangName}. What might this person be trying to say?\n\nOriginal: "${text}"\n\nYour ${targetLangName} interpretation:`
+              },
+            ],
+            temperature: 0.9,
+            max_tokens: 1024,
+          },
+          {
+            headers: {
+              'Authorization': `Bearer ${openaiApiKey}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        translatedText = interpretResponse.data.choices[0]?.message?.content?.trim() || `[Konnte nicht übersetzt werden: "${text.substring(0, 30)}..."]`;
+        console.log('Interpretation response:', translatedText.substring(0, 100));
+      }
     }
 
     // Detect source language if not provided
