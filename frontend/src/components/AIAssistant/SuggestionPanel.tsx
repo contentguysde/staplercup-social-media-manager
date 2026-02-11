@@ -62,14 +62,17 @@ export function SuggestionPanel({ interaction, onSelectSuggestion }: SuggestionP
     setTranslationError(null);
   }, [interaction.id]);
 
-  // Update workflow state based on loading/suggestions
+  // Update workflow state based on loading/suggestions/error
   useEffect(() => {
     if (loading) {
       setWorkflowState('generating');
-    } else if (suggestions.length > 0 && workflowState === 'generating') {
+    } else if (suggestions.length > 0) {
       setWorkflowState('reviewing_suggestions');
+    } else if (error && workflowState === 'generating') {
+      // Reset to idle on error so user can retry
+      setWorkflowState('idle');
     }
-  }, [loading, suggestions.length]);
+  }, [loading, suggestions.length, error, workflowState]);
 
   const handleGenerate = async () => {
     setSelectedIndex(null);
