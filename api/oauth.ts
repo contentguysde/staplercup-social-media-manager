@@ -14,6 +14,7 @@ const SCOPES = [
   'pages_show_list',                    // List user's Facebook Pages
   'pages_read_engagement',              // Read Page posts and engagement
   'pages_read_user_content',            // Read user comments on Page posts (required for Facebook comments!)
+  'pages_manage_engagement',            // Create/edit/delete comments on Page posts (required for Facebook replies!)
   'pages_manage_metadata',              // Manage Page metadata
   'pages_messaging',                    // Send/receive messages via Pages (required for Instagram DMs)
   'instagram_basic',                    // Basic Instagram account info
