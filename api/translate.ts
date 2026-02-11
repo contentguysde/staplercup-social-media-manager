@@ -91,17 +91,22 @@ async function handleTranslate(req: VercelRequest, res: VercelResponse) {
     const targetLangName = LANGUAGE_NAMES[targetLanguage] || targetLanguage;
     const sourceLangName = sourceLanguage ? (LANGUAGE_NAMES[sourceLanguage] || sourceLanguage) : null;
 
-    const systemPrompt = `You are a professional translator. Translate the given text accurately while preserving:
-- The original tone and style
-- Emojis and special characters
-- Mentions (@username) and hashtags (#tag)
-- Line breaks and formatting
+    const systemPrompt = `You are a professional translator. Your ONLY task is to translate text into ${targetLangName}.
 
-Only output the translated text, nothing else. No explanations, no quotes around the text.`;
+IMPORTANT RULES:
+1. ALWAYS translate the text - never return the original text unchanged
+2. If the text appears to be in a non-Latin script (Arabic, Chinese, Japanese, Korean, Hebrew, etc.), translate it to ${targetLangName}
+3. Preserve emojis, @mentions, and #hashtags as-is
+4. If the text seems like gibberish or cannot be meaningfully translated, provide your best interpretation or write "[Übersetzung nicht möglich]"
+5. Output ONLY the translated text - no explanations, no quotes
+
+You must output text in ${targetLangName} (${targetLanguage === 'de' ? 'German' : targetLangName}).`;
 
     const userPrompt = sourceLangName
-      ? `Translate the following text from ${sourceLangName} to ${targetLangName}:\n\n${text}`
-      : `Translate the following text to ${targetLangName}:\n\n${text}`;
+      ? `Translate this ${sourceLangName} text to ${targetLangName}:\n\n${text}`
+      : `Translate to ${targetLangName}:\n\n${text}`;
+
+    console.log('Translation request:', { targetLanguage, targetLangName, textLength: text.length, textPreview: text.substring(0, 50) });
 
     const response = await axios.post(
       'https://api.openai.com/v1/chat/completions',
@@ -111,7 +116,7 @@ Only output the translated text, nothing else. No explanations, no quotes around
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },
         ],
-        temperature: 0.3,
+        temperature: 0.5, // Slightly higher for more creative translations
         max_tokens: 1024,
       },
       {
@@ -122,7 +127,33 @@ Only output the translated text, nothing else. No explanations, no quotes around
       }
     );
 
-    const translatedText = response.data.choices[0]?.message?.content?.trim() || '';
+    let translatedText = response.data.choices[0]?.message?.content?.trim() || '';
+    console.log('Translation response:', { translatedTextLength: translatedText.length, translatedTextPreview: translatedText.substring(0, 50) });
+
+    // Check if translation actually happened - if output equals input, try again with explicit instruction
+    if (translatedText === text || translatedText.length === 0) {
+      console.log('Translation returned same text or empty, retrying with explicit instruction');
+      const retryResponse = await axios.post(
+        'https://api.openai.com/v1/chat/completions',
+        {
+          model: openaiModel,
+          messages: [
+            { role: 'system', content: `You are a translator. Translate ANY text to ${targetLangName}. You MUST output ${targetLangName} text only.` },
+            { role: 'user', content: `What does this mean in ${targetLangName}? Provide ONLY the ${targetLangName} translation:\n\n${text}` },
+          ],
+          temperature: 0.7,
+          max_tokens: 1024,
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${openaiApiKey}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      translatedText = retryResponse.data.choices[0]?.message?.content?.trim() || '[Übersetzung nicht möglich]';
+      console.log('Retry translation response:', translatedText.substring(0, 50));
+    }
 
     // Detect source language if not provided
     let detectedLanguage = sourceLanguage;
