@@ -91,20 +91,10 @@ async function handleTranslate(req: VercelRequest, res: VercelResponse) {
     const targetLangName = LANGUAGE_NAMES[targetLanguage] || targetLanguage;
     const sourceLangName = sourceLanguage ? (LANGUAGE_NAMES[sourceLanguage] || sourceLanguage) : null;
 
-    const systemPrompt = `You are a professional translator. Your ONLY task is to translate text into ${targetLangName}.
-
-IMPORTANT RULES:
-1. ALWAYS translate the text - never return the original text unchanged
-2. If the text appears to be in a non-Latin script (Arabic, Chinese, Japanese, Korean, Hebrew, etc.), translate it to ${targetLangName}
-3. Preserve emojis, @mentions, and #hashtags as-is
-4. If the text seems like gibberish or cannot be meaningfully translated, provide your best interpretation or write "[Übersetzung nicht möglich]"
-5. Output ONLY the translated text - no explanations, no quotes
-
-You must output text in ${targetLangName} (${targetLanguage === 'de' ? 'German' : targetLangName}).`;
-
-    const userPrompt = sourceLangName
-      ? `Translate this ${sourceLangName} text to ${targetLangName}:\n\n${text}`
-      : `Translate to ${targetLangName}:\n\n${text}`;
+    // Simple, direct prompt - similar to what you'd type in ChatGPT
+    const userMessage = targetLanguage === 'de'
+      ? `Übersetze ins Deutsche: ${text}`
+      : `Translate to ${targetLangName}: ${text}`;
 
     console.log('Translation request:', { targetLanguage, targetLangName, textLength: text.length, textPreview: text.substring(0, 50) });
 
@@ -113,10 +103,9 @@ You must output text in ${targetLangName} (${targetLanguage === 'de' ? 'German' 
       {
         model: openaiModel,
         messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
+          { role: 'user', content: userMessage },
         ],
-        temperature: 0.5, // Slightly higher for more creative translations
+        temperature: 0.3,
         max_tokens: 1024,
       },
       {
@@ -130,74 +119,11 @@ You must output text in ${targetLangName} (${targetLanguage === 'de' ? 'German' 
     let translatedText = response.data.choices[0]?.message?.content?.trim() || '';
     console.log('Translation response:', { translatedTextLength: translatedText.length, translatedTextPreview: translatedText.substring(0, 50) });
 
-    // Check if translation actually happened - if output equals input or is empty, try alternative approach
-    if (translatedText === text || translatedText.length === 0) {
-      console.log('Translation returned same text or empty, trying alternative prompt');
-
-      // Use a more conversational approach that might work better for informal/slang text
-      const retryResponse = await axios.post(
-        'https://api.openai.com/v1/chat/completions',
-        {
-          model: openaiModel,
-          messages: [
-            {
-              role: 'system',
-              content: `You are a translator specializing in social media content. Translate text to ${targetLangName}, including slang, informal language, and incomplete sentences. Always provide your best translation attempt, even if the meaning is unclear. Output ONLY the ${targetLangName} translation.`
-            },
-            {
-              role: 'user',
-              content: `Translate this social media comment to ${targetLangName}. If it's slang or informal, translate the meaning/intent:\n\n"${text}"`
-            },
-          ],
-          temperature: 0.8,
-          max_tokens: 1024,
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${openaiApiKey}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      const retryText = retryResponse.data.choices[0]?.message?.content?.trim() || '';
-      console.log('Retry translation response:', retryText.substring(0, 100));
-
-      // Use retry result if it's different from input and not empty
-      if (retryText && retryText !== text) {
-        translatedText = retryText;
-      } else {
-        // Last resort: ask for interpretation
-        console.log('Retry also returned same text, asking for interpretation');
-        const interpretResponse = await axios.post(
-          'https://api.openai.com/v1/chat/completions',
-          {
-            model: openaiModel,
-            messages: [
-              {
-                role: 'system',
-                content: `You help interpret and translate social media content to ${targetLangName}. Even if text seems like nonsense or is hard to translate, provide your best interpretation in ${targetLangName}.`
-              },
-              {
-                role: 'user',
-                content: `This is a social media comment. Interpret it and respond in ${targetLangName}. What might this person be trying to say?\n\nOriginal: "${text}"\n\nYour ${targetLangName} interpretation:`
-              },
-            ],
-            temperature: 0.9,
-            max_tokens: 1024,
-          },
-          {
-            headers: {
-              'Authorization': `Bearer ${openaiApiKey}`,
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-
-        translatedText = interpretResponse.data.choices[0]?.message?.content?.trim() || `[Konnte nicht übersetzt werden: "${text.substring(0, 30)}..."]`;
-        console.log('Interpretation response:', translatedText.substring(0, 100));
-      }
-    }
+    // Clean up common prefixes that GPT might add
+    translatedText = translatedText
+      .replace(/^(Übersetzung|Translation|Auf Deutsch|In German|In English):\s*/i, '')
+      .replace(/^["„"']|["„"']$/g, '')
+      .trim();
 
     // Detect source language if not provided
     let detectedLanguage = sourceLanguage;
