@@ -77,19 +77,20 @@ export function ConversationView({
   }>>([]);
   const [showAssignDropdown, setShowAssignDropdown] = useState(false);
 
-  // Translation state for comments
+  // Translation state for comments (showing German translation of incoming comment)
   const [showTranslation, setShowTranslation] = useState(false);
   const [translatedComment, setTranslatedComment] = useState<string | null>(null);
   const [translating, setTranslating] = useState(false);
 
-  // Pending translation info (from SuggestionPanel workflow)
-  const [pendingTranslation, setPendingTranslation] = useState<{
-    germanText: string;
-    translatedText: string;
-    targetLanguage: string;
-  } | null>(null);
+  // AI-detected language info (for reply translation)
+  const [detectedLanguage, setDetectedLanguage] = useState<string | null>(null);
+  const [needsReplyTranslation, setNeedsReplyTranslation] = useState(false);
 
-  // Toggle state for reply translations
+  // Reply translation state
+  const [translatingReply, setTranslatingReply] = useState(false);
+  const [originalReplyText, setOriginalReplyText] = useState<string | null>(null);
+
+  // Toggle state for reply translations (showing German version of sent replies)
   const [showReplyTranslation, setShowReplyTranslation] = useState<Record<string, boolean>>({});
   const assignDropdownRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -115,21 +116,47 @@ export function ConversationView({
     setSendSuccess(false);
     setShowTranslation(false);
     setTranslatedComment(null);
-    setPendingTranslation(null);
+    setDetectedLanguage(null);
+    setNeedsReplyTranslation(false);
+    setOriginalReplyText(null);
     setShowReplyTranslation({});
   }, [interaction.id]);
 
-  // Handle suggestion select with optional translation info
-  const handleSuggestionSelect = (suggestion: string, translationInfo?: {
-    germanText: string;
-    translatedText: string;
-    targetLanguage: string;
-  }) => {
+  // Handle suggestion select (just sets the reply text)
+  const handleSuggestionSelect = (suggestion: string) => {
     setReplyText(suggestion);
-    if (translationInfo) {
-      setPendingTranslation(translationInfo);
-    } else {
-      setPendingTranslation(null);
+    setOriginalReplyText(null); // Reset any previous translation state
+  };
+
+  // Handle language detection from AI
+  const handleLanguageDetected = (language: string, needsTranslation: boolean) => {
+    setDetectedLanguage(language);
+    setNeedsReplyTranslation(needsTranslation);
+  };
+
+  // Handle translating the reply text to target language
+  const handleTranslateReply = async () => {
+    if (!replyText.trim() || !detectedLanguage) return;
+
+    try {
+      setTranslatingReply(true);
+      // Save the original (German/English) text before translating
+      setOriginalReplyText(replyText);
+
+      const result = await translateApi.translate(replyText, detectedLanguage, 'de');
+      setReplyText(result.translatedText);
+    } catch (error) {
+      console.error('Reply translation failed:', error);
+    } finally {
+      setTranslatingReply(false);
+    }
+  };
+
+  // Revert to original text before translation
+  const handleRevertTranslation = () => {
+    if (originalReplyText) {
+      setReplyText(originalReplyText);
+      setOriginalReplyText(null);
     }
   };
 
@@ -257,13 +284,13 @@ export function ConversationView({
         await onSendReply(messageToSend);
 
         // Store translation in DB if this was a translated reply
-        if (pendingTranslation) {
+        if (originalReplyText && detectedLanguage) {
           try {
             await translateApi.store({
-              originalText: pendingTranslation.germanText,
-              translatedText: pendingTranslation.translatedText,
+              originalText: originalReplyText,
+              translatedText: messageToSend,
               sourceLanguage: 'de',
-              targetLanguage: pendingTranslation.targetLanguage,
+              targetLanguage: detectedLanguage,
               contextType: 'reply',
               contextId: interaction.id,
               platform: interaction.platform,
@@ -279,11 +306,11 @@ export function ConversationView({
           content: messageToSend,
           timestamp: new Date().toISOString(),
           isOwn: true,
-          germanText: pendingTranslation?.germanText,
+          germanText: originalReplyText || undefined,
         };
         setLocalReplies(prev => [...prev, newReply]);
         setReplyText('');
-        setPendingTranslation(null);
+        setOriginalReplyText(null);
         setSendSuccess(true);
       }
 
@@ -885,6 +912,7 @@ export function ConversationView({
         <SuggestionPanel
           interaction={interaction}
           onSelectSuggestion={handleSuggestionSelect}
+          onLanguageDetected={handleLanguageDetected}
         />
       )}
 
@@ -957,10 +985,56 @@ export function ConversationView({
         </div>
       ) : (
         <div className="p-4 border-t border-gray-200 bg-white">
+          {/* Translation indicator and controls */}
+          {needsReplyTranslation && replyText.trim() && (
+            <div className="mb-3 flex items-center justify-between">
+              {originalReplyText ? (
+                // Already translated - show revert option
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-green-700 bg-green-100 rounded-full">
+                    <Globe size={10} />
+                    Übersetzt ({detectedLanguage?.toUpperCase()})
+                  </span>
+                  <button
+                    onClick={handleRevertTranslation}
+                    className="text-xs text-gray-500 hover:text-gray-700 underline"
+                  >
+                    Zurück zur deutschen Version
+                  </button>
+                </div>
+              ) : (
+                // Not translated yet - show translate button
+                <button
+                  onClick={handleTranslateReply}
+                  disabled={translatingReply}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 rounded-full transition-colors disabled:opacity-50"
+                >
+                  {translatingReply ? (
+                    <>
+                      <Loader2 size={12} className="animate-spin" />
+                      Übersetze...
+                    </>
+                  ) : (
+                    <>
+                      <Globe size={12} />
+                      In Zielsprache übersetzen ({detectedLanguage?.toUpperCase()})
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+          )}
+
           <div className="flex gap-2">
             <textarea
               value={replyText}
-              onChange={(e) => setReplyText(e.target.value)}
+              onChange={(e) => {
+                setReplyText(e.target.value);
+                // If user manually edits after translation, clear the original
+                if (originalReplyText && e.target.value !== replyText) {
+                  setOriginalReplyText(null);
+                }
+              }}
               placeholder="Deine Antwort schreiben..."
               disabled={sending}
               className="flex-1 resize-none border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed transition-colors"

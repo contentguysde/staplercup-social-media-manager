@@ -82,7 +82,10 @@ export interface SuggestionRequest {
 export interface SuggestionResponse {
   suggestions: string[];
   provider: AIProvider;
-  generatedAt: string;
+  generatedAt?: string;
+  detectedLanguage?: string;   // ISO 639-1 code of original message
+  responseLanguage?: string;   // Language of the suggestions (de or en)
+  needsTranslation?: boolean;  // True if original was not DE/EN
 }
 
 export interface APIResponse<T> {

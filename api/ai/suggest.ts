@@ -115,32 +115,89 @@ async function handleOpenAIGeneration(
       data: {
         suggestions: getMockSuggestions(),
         provider: 'mock',
+        detectedLanguage: 'de',
+        responseLanguage: 'de',
       },
     });
   }
 
-  try {
-    console.log('OpenAI handler: Building prompts');
-    const toneDescription = getToneDescription(tone);
-    const postContext = context.postContext ? `\nPost-Kontext: "${context.postContext}"` : '';
-    const customInstructions = customPrompt ? `\n\nZusätzliche Anweisungen vom Nutzer: ${customPrompt}` : '';
+  const originalMessage = interaction.content || context.originalMessage || '';
 
-    const systemPrompt = `Du bist ein freundlicher Social Media Manager für den StaplerCup, einem professionellen Gabelstapler-Wettbewerb in Deutschland.
+  try {
+    // Step 1: Detect language of the original message
+    console.log('OpenAI handler: Detecting language');
+    const detectResponse = await axios.post(
+      'https://api.openai.com/v1/chat/completions',
+      {
+        model: openaiModel,
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a language detection assistant. Respond with ONLY the ISO 639-1 language code (e.g., "de", "en", "pt", "es", "fr"). Nothing else.'
+          },
+          {
+            role: 'user',
+            content: `What language is this text written in? "${originalMessage}"`
+          },
+        ],
+        temperature: 0,
+        max_tokens: 10,
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${openaiApiKey}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    const detectedLanguage = (detectResponse.data.choices[0]?.message?.content || 'de').trim().toLowerCase().substring(0, 2);
+    console.log('OpenAI handler: Detected language:', detectedLanguage);
+
+    // Determine response language: DE for German/other, EN for English
+    const responseLanguage = detectedLanguage === 'en' ? 'en' : 'de';
+    const needsTranslation = detectedLanguage !== 'de' && detectedLanguage !== 'en';
+
+    console.log('OpenAI handler: Response language:', responseLanguage, 'Needs translation:', needsTranslation);
+
+    // Step 2: Generate suggestions in the appropriate language
+    const toneDescription = getToneDescription(tone, responseLanguage);
+    const postContext = context.postContext ? `\nPost context: "${context.postContext}"` : '';
+    const customInstructions = customPrompt
+      ? `\n\n${responseLanguage === 'en' ? 'Additional instructions from user' : 'Zusätzliche Anweisungen vom Nutzer'}: ${customPrompt}`
+      : '';
+
+    const systemPrompt = responseLanguage === 'en'
+      ? `You are a friendly social media manager for StaplerCup, a professional forklift competition in Germany.
+Your task is to respond to comments and messages.
+Always respond in English.
+${toneDescription}
+Keep responses short and concise (max 2-3 sentences).
+Use appropriate emojis when suitable.${customInstructions}`
+      : `Du bist ein freundlicher Social Media Manager für den StaplerCup, einem professionellen Gabelstapler-Wettbewerb in Deutschland.
 Deine Aufgabe ist es, auf Kommentare und Nachrichten zu antworten.
 Antworte immer auf Deutsch.
 ${toneDescription}
 Halte die Antworten kurz und prägnant (max. 2-3 Sätze).
 Nutze passende Emojis wenn angemessen.${customInstructions}`;
 
-    const userPrompt = `Bitte generiere 3 verschiedene Antwortvorschläge für folgende Nachricht:
+    const userPrompt = responseLanguage === 'en'
+      ? `Please generate 3 different reply suggestions for the following message:
+
+Type: ${interaction.type}
+From: @${interaction.from?.username || 'Unknown'}
+Message: "${originalMessage}"${postContext}
+
+Return only the 3 suggestions, each on a new line, without numbering.`
+      : `Bitte generiere 3 verschiedene Antwortvorschläge für folgende Nachricht:
 
 Typ: ${interaction.type}
 Von: @${interaction.from?.username || 'Unbekannt'}
-Nachricht: "${interaction.content || context.originalMessage}"${postContext}
+Nachricht: "${originalMessage}"${postContext}
 
 Gib nur die 3 Antwortvorschläge zurück, jeweils in einer neuen Zeile, ohne Nummerierung.`;
 
-    console.log('OpenAI handler: Making API request to OpenAI');
+    console.log('OpenAI handler: Making API request for suggestions');
     const response = await axios.post(
       'https://api.openai.com/v1/chat/completions',
       {
@@ -175,6 +232,9 @@ Gib nur die 3 Antwortvorschläge zurück, jeweils in einer neuen Zeile, ohne Num
         suggestions,
         provider: 'openai',
         model: openaiModel,
+        detectedLanguage,
+        responseLanguage,
+        needsTranslation,
       },
     });
   } catch (error: any) {
@@ -185,12 +245,26 @@ Gib nur die 3 Antwortvorschläge zurück, jeweils in einer neuen Zeile, ohne Num
         suggestions: getMockSuggestions(),
         provider: 'mock',
         error: 'AI temporarily unavailable',
+        detectedLanguage: 'de',
+        responseLanguage: 'de',
       },
     });
   }
 }
 
-function getToneDescription(tone: string): string {
+function getToneDescription(tone: string, language: string = 'de'): string {
+  if (language === 'en') {
+    switch (tone) {
+      case 'professional':
+        return 'Respond professionally and formally.';
+      case 'casual':
+        return 'Respond casually and colloquially.';
+      case 'friendly':
+      default:
+        return 'Respond in a friendly and warm manner.';
+    }
+  }
+  // German (default)
   switch (tone) {
     case 'professional':
       return 'Antworte professionell und formell.';

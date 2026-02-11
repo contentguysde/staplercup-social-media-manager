@@ -7,12 +7,19 @@ interface UseAIOptions {
   defaultTone?: Tone;
 }
 
+interface LanguageInfo {
+  detectedLanguage: string;
+  responseLanguage: string;
+  needsTranslation: boolean;
+}
+
 export function useAI(options: UseAIOptions = {}) {
   const { defaultProvider = 'openai', defaultTone = 'friendly' } = options;
 
   const [provider, setProvider] = useState<AIProvider>(defaultProvider);
   const [tone, setTone] = useState<Tone>(defaultTone);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [languageInfo, setLanguageInfo] = useState<LanguageInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [availableProviders, setAvailableProviders] = useState<{
@@ -37,6 +44,7 @@ export function useAI(options: UseAIOptions = {}) {
         setLoading(true);
         setError(null);
         setSuggestions([]);
+        setLanguageInfo(null);
 
         const request: SuggestionRequest = {
           context: {
@@ -56,7 +64,17 @@ export function useAI(options: UseAIOptions = {}) {
 
         const response = await aiApi.getSuggestions(request);
         setSuggestions(response.suggestions);
-        return response.suggestions;
+
+        // Store language info from response
+        if (response.detectedLanguage) {
+          setLanguageInfo({
+            detectedLanguage: response.detectedLanguage,
+            responseLanguage: response.responseLanguage || 'de',
+            needsTranslation: response.needsTranslation || false,
+          });
+        }
+
+        return response;
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to generate suggestions';
         setError(message);
@@ -70,6 +88,7 @@ export function useAI(options: UseAIOptions = {}) {
 
   const clearSuggestions = useCallback(() => {
     setSuggestions([]);
+    setLanguageInfo(null);
     setError(null);
   }, []);
 
@@ -79,6 +98,7 @@ export function useAI(options: UseAIOptions = {}) {
     tone,
     setTone,
     suggestions,
+    languageInfo,
     loading,
     error,
     generateSuggestions,
