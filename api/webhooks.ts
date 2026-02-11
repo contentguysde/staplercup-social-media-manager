@@ -551,5 +551,3 @@ async function ensureWebhookTable() {
     console.log('Webhook table setup:', error);
   }
 }
-// Force redeploy Wed Feb 11 18:08:56 CET 2026
-// Force redeploy 1770830564
