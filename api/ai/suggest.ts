@@ -27,7 +27,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Support both old and new request formats
-    const { interaction, context, provider = 'claude', tone = 'friendly', customPrompt } = req.body;
+    const { interaction, context, provider = 'openai', tone = 'friendly', customPrompt } = req.body;
 
     // Build context from old or new format
     const contextData = context || {};
