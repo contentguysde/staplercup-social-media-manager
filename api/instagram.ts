@@ -165,7 +165,7 @@ async function handleStatus(_req: VercelRequest, res: VercelResponse) {
  */
 async function verifyCommentExists(commentId: string, accessToken: string): Promise<boolean> {
   try {
-    await axios.get(
+    const response = await axios.get(
       `https://graph.facebook.com/v18.0/${commentId}`,
       {
         params: {
@@ -175,12 +175,16 @@ async function verifyCommentExists(commentId: string, accessToken: string): Prom
         timeout: 3000,
       }
     );
+    console.log(`Comment ${commentId} exists:`, response.data);
     return true;
   } catch (error: any) {
     const errorCode = error.response?.data?.error?.code;
+    const errorMessage = error.response?.data?.error?.message;
+    console.log(`Comment ${commentId} verification error:`, { errorCode, errorMessage, status: error.response?.status });
     // Error code 100 = "Unsupported get request" (comment deleted or doesn't exist)
     // Error code 190 = Invalid access token (shouldn't mark as deleted)
     if (errorCode === 100 || error.response?.status === 404) {
+      console.log(`Comment ${commentId} marked as DELETED`);
       return false;
     }
     // For other errors, assume comment still exists to avoid false positives
