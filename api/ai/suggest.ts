@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { verifyAccessToken, getTokenFromHeader } from '../_lib/auth';
 import axios from 'axios';
-import Anthropic from '@anthropic-ai/sdk';
+// Note: Anthropic SDK removed - using OpenAI only for now
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Handle OPTIONS preflight requests
@@ -77,81 +77,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
 async function handleClaudeGeneration(
   res: VercelResponse,
-  interaction: any,
-  context: any,
-  tone: string,
-  customPrompt?: string
+  _interaction: any,
+  _context: any,
+  _tone: string,
+  _customPrompt?: string
 ) {
-  const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
-
-  if (!anthropicApiKey) {
-    // Fall back to mock suggestions
-    return res.status(200).json({
-      success: true,
-      data: {
-        suggestions: getMockSuggestions(),
-        provider: 'mock',
-      },
-    });
-  }
-
-  try {
-    const anthropic = new Anthropic({ apiKey: anthropicApiKey });
-
-    const toneDescription = getToneDescription(tone);
-    const postContext = context.postContext ? `\nPost-Kontext: "${context.postContext}"` : '';
-    const customInstructions = customPrompt ? `\n\nZusätzliche Anweisungen vom Nutzer: ${customPrompt}` : '';
-
-    const systemPrompt = `Du bist ein freundlicher Social Media Manager für den StaplerCup, einem professionellen Gabelstapler-Wettbewerb in Deutschland.
-Deine Aufgabe ist es, auf Kommentare und Nachrichten zu antworten.
-Antworte immer auf Deutsch.
-${toneDescription}
-Halte die Antworten kurz und prägnant (max. 2-3 Sätze).
-Nutze passende Emojis wenn angemessen.${customInstructions}`;
-
-    const userPrompt = `Bitte generiere 3 verschiedene Antwortvorschläge für folgende Nachricht:
-
-Typ: ${interaction.type}
-Von: @${interaction.from?.username || 'Unbekannt'}
-Nachricht: "${interaction.content || context.originalMessage}"${postContext}
-
-Gib nur die 3 Antwortvorschläge zurück, jeweils in einer neuen Zeile, ohne Nummerierung oder Aufzählungszeichen.`;
-
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 500,
-      system: systemPrompt,
-      messages: [
-        { role: 'user', content: userPrompt },
-      ],
-    });
-
-    const content = response.content[0].type === 'text' ? response.content[0].text : '';
-    const suggestions = content
-      .split('\n')
-      .map((s: string) => s.trim())
-      .filter((s: string) => s.length > 0 && !s.match(/^\d+[\.\)]/))
-      .slice(0, 3);
-
-    return res.status(200).json({
-      success: true,
-      data: {
-        suggestions: suggestions.length > 0 ? suggestions : getMockSuggestions(),
-        provider: 'claude',
-        model: 'claude-sonnet-4-20250514',
-      },
-    });
-  } catch (error: any) {
-    console.error('Claude error:', error.message);
-    return res.status(200).json({
-      success: true,
-      data: {
-        suggestions: getMockSuggestions(),
-        provider: 'mock',
-        error: 'AI temporarily unavailable',
-      },
-    });
-  }
+  // Claude/Anthropic SDK not installed - fall back to mock suggestions
+  // To enable Claude, install @anthropic-ai/sdk and add implementation
+  console.log('Claude provider requested but not configured - returning mock data');
+  return res.status(200).json({
+    success: true,
+    data: {
+      suggestions: getMockSuggestions(),
+      provider: 'mock',
+      error: 'Claude nicht konfiguriert - bitte OpenAI verwenden',
+    },
+  });
 }
 
 async function handleOpenAIGeneration(
