@@ -110,6 +110,10 @@ export function ConversationView({
   const [loadingComments, setLoadingComments] = useState(false);
   const [replyToCommentId, setReplyToCommentId] = useState<string | null>(null);
 
+  // State for automatic language detection of incoming comments
+  const [commentLanguage, setCommentLanguage] = useState<string | null>(null);
+  const [detectingLanguage, setDetectingLanguage] = useState(false);
+
   // Reset local state when interaction changes
   useEffect(() => {
     setLocalReplies([]);
@@ -120,7 +124,36 @@ export function ConversationView({
     setNeedsReplyTranslation(false);
     setOriginalReplyText(null);
     setShowReplyTranslation({});
+    setCommentLanguage(null);
   }, [interaction.id]);
+
+  // Automatically detect language of incoming comment
+  useEffect(() => {
+    const detectCommentLanguage = async () => {
+      // Only detect for comments/DMs with content
+      if (!interaction.content || interaction.content.length < 3) return;
+
+      try {
+        setDetectingLanguage(true);
+        const result = await translateApi.detect(interaction.content);
+        setCommentLanguage(result.language);
+
+        // If not DE or EN, set up for reply translation
+        if (result.language !== 'de' && result.language !== 'en') {
+          setDetectedLanguage(result.language);
+          setNeedsReplyTranslation(true);
+        }
+      } catch (error) {
+        console.error('Language detection failed:', error);
+        // Fallback - don't show translation options
+        setCommentLanguage(null);
+      } finally {
+        setDetectingLanguage(false);
+      }
+    };
+
+    detectCommentLanguage();
+  }, [interaction.id, interaction.content]);
 
   // Handle suggestion select (just sets the reply text)
   const handleSuggestionSelect = (suggestion: string) => {
@@ -607,7 +640,15 @@ export function ConversationView({
                     <p className="text-gray-800 whitespace-pre-line">{interaction.content}</p>
 
                     {/* Translation toggle for non-DE/EN comments */}
-                    {interaction.labels?.language === 'other' && (
+                    {detectingLanguage && (
+                      <div className="mt-2">
+                        <span className="inline-flex items-center gap-1 px-2 py-1 text-xs text-gray-400">
+                          <Loader2 size={10} className="animate-spin" />
+                          Sprache wird erkannt...
+                        </span>
+                      </div>
+                    )}
+                    {!detectingLanguage && commentLanguage && commentLanguage !== 'de' && commentLanguage !== 'en' && (
                       <div className="mt-3">
                         <button
                           onClick={handleTranslateComment}
@@ -622,7 +663,7 @@ export function ConversationView({
                           ) : (
                             <>
                               <Globe size={12} />
-                              {showTranslation ? 'Original anzeigen' : 'Auf Deutsch anzeigen'}
+                              {showTranslation ? 'Original anzeigen' : `Auf Deutsch anzeigen (${commentLanguage.toUpperCase()})`}
                             </>
                           )}
                         </button>

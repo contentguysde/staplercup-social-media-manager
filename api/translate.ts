@@ -1,11 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import Anthropic from '@anthropic-ai/sdk';
+import axios from 'axios';
 import { sql } from '@vercel/postgres';
-
-// Initialize Anthropic client
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY || '',
-});
 
 // ISO 639-1 language codes mapping
 const LANGUAGE_NAMES: Record<string, string> = {
@@ -77,7 +72,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 }
 
-// POST /api/translate/translate - Translate text using Claude
+// POST /api/translate/translate - Translate text using OpenAI
 async function handleTranslate(req: VercelRequest, res: VercelResponse) {
   const { text, targetLanguage, sourceLanguage } = req.body;
 
@@ -85,8 +80,11 @@ async function handleTranslate(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: 'text und targetLanguage sind erforderlich' });
   }
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return res.status(500).json({ error: 'ANTHROPIC_API_KEY nicht konfiguriert' });
+  const openaiApiKey = process.env.OPENAI_API_KEY;
+  const openaiModel = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+
+  if (!openaiApiKey || openaiApiKey === 'your_openai_api_key') {
+    return res.status(500).json({ error: 'OpenAI API Key nicht konfiguriert' });
   }
 
   try {
@@ -105,26 +103,31 @@ Only output the translated text, nothing else. No explanations, no quotes around
       ? `Translate the following text from ${sourceLangName} to ${targetLangName}:\n\n${text}`
       : `Translate the following text to ${targetLangName}:\n\n${text}`;
 
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1024,
-      messages: [
-        {
-          role: 'user',
-          content: userPrompt,
+    const response = await axios.post(
+      'https://api.openai.com/v1/chat/completions',
+      {
+        model: openaiModel,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.3,
+        max_tokens: 1024,
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${openaiApiKey}`,
+          'Content-Type': 'application/json',
         },
-      ],
-      system: systemPrompt,
-    });
+      }
+    );
 
-    const translatedText = response.content[0].type === 'text'
-      ? response.content[0].text.trim()
-      : '';
+    const translatedText = response.data.choices[0]?.message?.content?.trim() || '';
 
     // Detect source language if not provided
     let detectedLanguage = sourceLanguage;
     if (!detectedLanguage) {
-      const detectResult = await detectLanguage(text);
+      const detectResult = await detectLanguage(text, openaiApiKey, openaiModel);
       detectedLanguage = detectResult.language;
     }
 
@@ -137,7 +140,7 @@ Only output the translated text, nothing else. No explanations, no quotes around
       },
     });
   } catch (error: any) {
-    console.error('Translation error:', error);
+    console.error('Translation error:', error.response?.data || error.message);
     return res.status(500).json({
       success: false,
       error: error.message || 'Übersetzung fehlgeschlagen',
@@ -153,12 +156,15 @@ async function handleDetect(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: 'text ist erforderlich' });
   }
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return res.status(500).json({ error: 'ANTHROPIC_API_KEY nicht konfiguriert' });
+  const openaiApiKey = process.env.OPENAI_API_KEY;
+  const openaiModel = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+
+  if (!openaiApiKey || openaiApiKey === 'your_openai_api_key') {
+    return res.status(500).json({ error: 'OpenAI API Key nicht konfiguriert' });
   }
 
   try {
-    const result = await detectLanguage(text);
+    const result = await detectLanguage(text, openaiApiKey, openaiModel);
     return res.status(200).json({
       success: true,
       data: result,
@@ -172,44 +178,56 @@ async function handleDetect(req: VercelRequest, res: VercelResponse) {
   }
 }
 
-// Helper function for language detection
-async function detectLanguage(text: string): Promise<{ language: string; languageName: string; confidence: number }> {
-  const systemPrompt = `You are a language detection expert. Analyze the given text and determine its language.
-Respond ONLY with a JSON object in this exact format (no markdown, no code blocks):
-{"language": "xx", "confidence": 0.95}
-
-Where "language" is the ISO 639-1 two-letter code (e.g., "de" for German, "en" for English, "pt" for Portuguese).
-And "confidence" is a number between 0 and 1 indicating how confident you are.`;
-
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 100,
-    messages: [
-      {
-        role: 'user',
-        content: `Detect the language of this text:\n\n${text}`,
+// Helper function for language detection using OpenAI
+async function detectLanguage(
+  text: string,
+  openaiApiKey: string,
+  openaiModel: string
+): Promise<{ language: string; languageName: string; confidence: number }> {
+  const response = await axios.post(
+    'https://api.openai.com/v1/chat/completions',
+    {
+      model: openaiModel,
+      messages: [
+        {
+          role: 'system',
+          content: 'Detect the language of the given text. Reply with ONLY the 2-letter ISO 639-1 code. Examples: de, en, pt, es, fr, it. Do not include any other text, punctuation, or explanation.'
+        },
+        { role: 'user', content: 'Hallo, wie geht es dir?' },
+        { role: 'assistant', content: 'de' },
+        { role: 'user', content: 'Hello, how are you doing today?' },
+        { role: 'assistant', content: 'en' },
+        { role: 'user', content: 'Olá, como você está?' },
+        { role: 'assistant', content: 'pt' },
+        { role: 'user', content: text },
+      ],
+      temperature: 0,
+      max_tokens: 5,
+    },
+    {
+      headers: {
+        'Authorization': `Bearer ${openaiApiKey}`,
+        'Content-Type': 'application/json',
       },
-    ],
-    system: systemPrompt,
-  });
+    }
+  );
 
-  const responseText = response.content[0].type === 'text' ? response.content[0].text.trim() : '{}';
+  const rawDetection = (response.data.choices[0]?.message?.content || 'unknown').trim().toLowerCase();
 
-  try {
-    const parsed = JSON.parse(responseText);
-    return {
-      language: parsed.language || 'unknown',
-      languageName: LANGUAGE_NAMES[parsed.language] || parsed.language || 'Unknown',
-      confidence: parsed.confidence || 0.5,
-    };
-  } catch {
-    // Fallback if JSON parsing fails
-    return {
-      language: 'unknown',
-      languageName: 'Unknown',
-      confidence: 0,
-    };
+  // Extract language code
+  let language = 'unknown';
+  const langMatch = rawDetection.match(/\b(de|en|pt|es|fr|it|nl|pl|ru|zh|ja|ko|ar|tr|sv|da|no|fi|cs|hu|ro|el|he|th|vi|id|ms|hi|bn|uk)\b/);
+  if (langMatch) {
+    language = langMatch[1];
+  } else if (rawDetection.length === 2) {
+    language = rawDetection;
   }
+
+  return {
+    language,
+    languageName: LANGUAGE_NAMES[language] || language || 'Unknown',
+    confidence: language !== 'unknown' ? 0.9 : 0.1,
+  };
 }
 
 // GET /api/translate/cached - Get cached translation from DB
