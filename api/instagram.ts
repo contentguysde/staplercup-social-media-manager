@@ -560,6 +560,8 @@ async function handleSendMessage(req: VercelRequest, res: VercelResponse) {
 async function handleReplyToComment(req: VercelRequest, res: VercelResponse, commentId: string) {
   const { message } = req.body;
 
+  console.log('[Instagram Reply] Request received:', { commentId, messageLength: message?.length });
+
   if (!message) {
     return res.status(400).json({
       success: false,
@@ -568,6 +570,13 @@ async function handleReplyToComment(req: VercelRequest, res: VercelResponse, com
   }
 
   const credentials = await getInstagramCredentials();
+
+  console.log('[Instagram Reply] Credentials:', {
+    hasCredentials: !!credentials,
+    accountId: credentials?.accountId,
+    tokenLength: credentials?.accessToken?.length,
+    source: credentials?.source,
+  });
 
   if (!credentials) {
     return res.status(200).json({
@@ -578,19 +587,22 @@ async function handleReplyToComment(req: VercelRequest, res: VercelResponse, com
 
   try {
     // Reply to comment using the Facebook Graph API
-    // This works for both Instagram and Facebook comments
-    // Requires instagram_manage_comments scope
+    // Instagram uses /replies endpoint, requires instagram_manage_comments scope
+    const url = `https://graph.facebook.com/v18.0/${commentId}/replies`;
+    console.log('[Instagram Reply] Making request to:', url);
+
     const response = await axios.post(
-      `https://graph.facebook.com/v18.0/${commentId}/replies`,
-      {
-        message,
-      },
+      url,
+      null, // Send as query params for consistency with Graph API
       {
         params: {
+          message,
           access_token: credentials.accessToken,
         },
       }
     );
+
+    console.log('[Instagram Reply] Success response:', JSON.stringify(response.data, null, 2));
 
     return res.status(200).json({
       success: true,
@@ -599,11 +611,20 @@ async function handleReplyToComment(req: VercelRequest, res: VercelResponse, com
       },
     });
   } catch (error: any) {
-    console.error('Error replying to Instagram comment:', error.response?.data || error.message);
+    console.error('[Instagram Reply] Error:', {
+      status: error.response?.status,
+      data: error.response?.data,
+      message: error.message,
+    });
 
     return res.status(200).json({
       success: false,
       error: error.response?.data?.error?.message || 'Antwort konnte nicht gesendet werden',
+      debug: {
+        status: error.response?.status,
+        errorCode: error.response?.data?.error?.code,
+        errorType: error.response?.data?.error?.type,
+      },
     });
   }
 }

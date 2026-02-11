@@ -525,6 +525,8 @@ async function fetchApiComments(credentials: { pageId: string; accessToken: stri
 async function handleReplyToComment(req: VercelRequest, res: VercelResponse) {
   const { commentId, message } = req.body;
 
+  console.log('[Facebook Reply] Request received:', { commentId, messageLength: message?.length });
+
   if (!commentId || !message) {
     return res.status(400).json({
       success: false,
@@ -533,6 +535,13 @@ async function handleReplyToComment(req: VercelRequest, res: VercelResponse) {
   }
 
   const credentials = await getInstagramCredentials();
+
+  console.log('[Facebook Reply] Credentials:', {
+    hasCredentials: !!credentials,
+    pageId: credentials?.pageId,
+    tokenLength: credentials?.accessToken?.length,
+    source: credentials?.source,
+  });
 
   if (!credentials || !credentials.pageId) {
     return res.status(200).json({
@@ -543,17 +552,22 @@ async function handleReplyToComment(req: VercelRequest, res: VercelResponse) {
 
   try {
     // Reply to comment using the Facebook Graph API
+    // POST /{comment-id}/comments with message parameter
+    const url = `https://graph.facebook.com/v18.0/${commentId}/comments`;
+    console.log('[Facebook Reply] Making request to:', url);
+
     const response = await axios.post(
-      `https://graph.facebook.com/v18.0/${commentId}/comments`,
-      {
-        message,
-      },
+      url,
+      null, // No body - send as query params for Facebook Graph API
       {
         params: {
+          message,
           access_token: credentials.accessToken,
         },
       }
     );
+
+    console.log('[Facebook Reply] Success response:', JSON.stringify(response.data, null, 2));
 
     return res.status(200).json({
       success: true,
@@ -563,11 +577,21 @@ async function handleReplyToComment(req: VercelRequest, res: VercelResponse) {
     });
 
   } catch (error: any) {
-    console.error('Error replying to Facebook comment:', error.response?.data || error.message);
+    console.error('[Facebook Reply] Error:', {
+      status: error.response?.status,
+      data: error.response?.data,
+      message: error.message,
+    });
 
     return res.status(200).json({
       success: false,
       error: error.response?.data?.error?.message || 'Antwort konnte nicht gesendet werden',
+      debug: {
+        status: error.response?.status,
+        errorCode: error.response?.data?.error?.code,
+        errorSubcode: error.response?.data?.error?.error_subcode,
+        errorType: error.response?.data?.error?.type,
+      },
     });
   }
 }
