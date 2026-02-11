@@ -42,6 +42,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(404).json({ error: 'Endpoint nicht gefunden' });
       }
     } else if (req.method === 'POST') {
+      // Check for comment reply pattern: comments/{commentId}/reply
+      const replyMatch = action.match(/^comments\/([^/]+)\/reply$/);
+      if (replyMatch) {
+        return handleReplyToComment(req, res, replyMatch[1]);
+      }
+
       switch (action) {
         case 'send-message':
           return handleSendMessage(req, res);
@@ -546,6 +552,58 @@ async function handleSendMessage(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({
       success: false,
       error: error.response?.data?.error?.message || 'Nachricht konnte nicht gesendet werden',
+    });
+  }
+}
+
+// POST /api/instagram/comments/{commentId}/reply - Reply to a comment
+async function handleReplyToComment(req: VercelRequest, res: VercelResponse, commentId: string) {
+  const { message } = req.body;
+
+  if (!message) {
+    return res.status(400).json({
+      success: false,
+      error: 'message ist erforderlich',
+    });
+  }
+
+  const credentials = await getInstagramCredentials();
+
+  if (!credentials) {
+    return res.status(200).json({
+      success: false,
+      error: 'Instagram nicht verbunden',
+    });
+  }
+
+  try {
+    // Reply to comment using the Facebook Graph API
+    // This works for both Instagram and Facebook comments
+    // Requires instagram_manage_comments scope
+    const response = await axios.post(
+      `https://graph.facebook.com/v18.0/${commentId}/replies`,
+      {
+        message,
+      },
+      {
+        params: {
+          access_token: credentials.accessToken,
+        },
+      }
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        id: response.data.id,
+      },
+    });
+  } catch (error: any) {
+    console.error('Error replying to Instagram comment:', error.response?.data || error.message);
+
+    return res.status(200).json({
+      success: false,
+      error: error.response?.data?.error?.message || 'Antwort konnte nicht gesendet werden',
     });
   }
 }
