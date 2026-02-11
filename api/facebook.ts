@@ -346,14 +346,18 @@ async function getWebhookComments(credentials: { pageId: string; accessToken: st
     console.log('Facebook webhook comments found:', result.rows.length);
 
     // Verify comments still exist (check recent comments to avoid too many API calls)
-    const recentComments = result.rows.filter(row => {
+    // Skip verification for our own comments (page replies)
+    const recentExternalComments = result.rows.filter(row => {
       const commentAge = Date.now() - new Date(row.timestamp).getTime();
       const sevenDays = 7 * 24 * 60 * 60 * 1000;
-      return commentAge < sevenDays;
+      const isRecent = commentAge < sevenDays;
+      // Skip verification for our own comments (replies from our page)
+      const isOwnComment = row.from_id === credentials.pageId;
+      return isRecent && !isOwnComment;
     });
 
-    // Verify up to 10 recent comments in parallel
-    const commentsToVerify = recentComments.slice(0, 10);
+    // Verify up to 10 recent external comments in parallel
+    const commentsToVerify = recentExternalComments.slice(0, 10);
     const verificationResults = await Promise.all(
       commentsToVerify.map(async (row) => {
         const exists = await verifyCommentExists(row.comment_id, credentials.accessToken);
