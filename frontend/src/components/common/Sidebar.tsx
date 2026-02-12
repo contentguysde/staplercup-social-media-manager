@@ -1,27 +1,27 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { MessageSquare, AtSign, Mail, LayoutDashboard, Settings, ChevronDown, ChevronRight, Archive, UserCheck } from 'lucide-react';
 
 interface SidebarProps {
   activeView: string;
-  onViewChange: (view: string) => void;
   showSettings?: boolean;
   myAssignedCount?: number;
 }
 
 const interactionTypes = [
-  { id: 'comments', labelKey: 'nav.comments', icon: MessageSquare },
-  { id: 'messages', labelKey: 'nav.messages', icon: Mail },
-  { id: 'mentions', labelKey: 'nav.mentions', icon: AtSign },
+  { id: 'comments', labelKey: 'nav.comments', icon: MessageSquare, path: '/inbox/comments' },
+  { id: 'messages', labelKey: 'nav.messages', icon: Mail, path: '/inbox/messages' },
+  { id: 'mentions', labelKey: 'nav.mentions', icon: AtSign, path: '/inbox/mentions' },
 ];
 
 const channels = [
-  { id: 'instagram', label: 'Instagram', icon: '📸', active: true },
-  { id: 'facebook', label: 'Facebook', icon: '📘', active: true },
-  { id: 'tiktok', label: 'TikTok', icon: '🎵', active: true },
+  { id: 'instagram', label: 'Instagram', icon: '📸', active: true, path: '/channels/instagram' },
+  { id: 'facebook', label: 'Facebook', icon: '📘', active: true, path: '/channels/facebook' },
+  { id: 'tiktok', label: 'TikTok', icon: '🎵', active: true, path: '/channels/tiktok' },
 ];
 
-export function Sidebar({ activeView, onViewChange, showSettings = true, myAssignedCount = 0 }: SidebarProps) {
+export function Sidebar({ activeView, showSettings = true, myAssignedCount = 0 }: SidebarProps) {
   const { t } = useTranslation();
   const [channelsExpanded, setChannelsExpanded] = useState(true);
 
@@ -39,8 +39,8 @@ export function Sidebar({ activeView, onViewChange, showSettings = true, myAssig
         {/* Dashboard */}
         <ul className="space-y-1 mb-4">
           <li>
-            <button
-              onClick={() => onViewChange('dashboard')}
+            <Link
+              to="/"
               className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
                 activeView === 'dashboard'
                   ? 'bg-blue-600 text-white'
@@ -49,14 +49,14 @@ export function Sidebar({ activeView, onViewChange, showSettings = true, myAssig
             >
               <LayoutDashboard size={18} />
               <span>{t('nav.dashboard')}</span>
-            </button>
+            </Link>
           </li>
         </ul>
 
         {/* Alle Interaktionen with expandable channels */}
         <div className="mb-4">
-          <button
-            onClick={() => onViewChange('all')}
+          <Link
+            to="/inbox"
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
               activeView === 'all'
                 ? 'bg-blue-600 text-white'
@@ -65,7 +65,7 @@ export function Sidebar({ activeView, onViewChange, showSettings = true, myAssig
           >
             <MessageSquare size={18} />
             <span>{t('nav.allInteractions')}</span>
-          </button>
+          </Link>
 
           {/* Channel submenu */}
           <div className="ml-4 mt-1">
@@ -81,23 +81,25 @@ export function Sidebar({ activeView, onViewChange, showSettings = true, myAssig
               <ul className="space-y-0.5 mt-1">
                 {channels.map((channel) => (
                   <li key={channel.id}>
-                    <button
-                      onClick={() => channel.active && onViewChange(channel.id)}
-                      disabled={!channel.active}
-                      className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors ${
-                        activeView === channel.id
-                          ? 'bg-blue-600/80 text-white'
-                          : channel.active
-                          ? 'text-gray-400 hover:bg-gray-800 hover:text-gray-300'
-                          : 'text-gray-600 cursor-not-allowed'
-                      }`}
-                    >
-                      <span>{channel.icon}</span>
-                      <span>{channel.label}</span>
-                      {!channel.active && (
+                    {channel.active ? (
+                      <Link
+                        to={channel.path}
+                        className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors ${
+                          activeView === channel.id
+                            ? 'bg-blue-600/80 text-white'
+                            : 'text-gray-400 hover:bg-gray-800 hover:text-gray-300'
+                        }`}
+                      >
+                        <span>{channel.icon}</span>
+                        <span>{channel.label}</span>
+                      </Link>
+                    ) : (
+                      <span className="w-full flex items-center gap-2 px-3 py-1.5 rounded-md text-sm text-gray-600 cursor-not-allowed">
+                        <span>{channel.icon}</span>
+                        <span>{channel.label}</span>
                         <span className="text-[10px] text-gray-600 ml-auto">{t('common.soon')}</span>
-                      )}
-                    </button>
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -111,8 +113,8 @@ export function Sidebar({ activeView, onViewChange, showSettings = true, myAssig
           <ul className="space-y-1">
             {interactionTypes.map((item) => (
               <li key={item.id}>
-                <button
-                  onClick={() => onViewChange(item.id)}
+                <Link
+                  to={item.path}
                   className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
                     activeView === item.id
                       ? 'bg-blue-600 text-white'
@@ -121,7 +123,7 @@ export function Sidebar({ activeView, onViewChange, showSettings = true, myAssig
                 >
                   <item.icon size={18} />
                   <span>{t(item.labelKey)}</span>
-                </button>
+                </Link>
               </li>
             ))}
           </ul>
@@ -129,8 +131,8 @@ export function Sidebar({ activeView, onViewChange, showSettings = true, myAssig
 
         {/* My Assigned */}
         <div className="mb-4">
-          <button
-            onClick={() => onViewChange('my-assigned')}
+          <Link
+            to="/my-assigned"
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
               activeView === 'my-assigned'
                 ? 'bg-blue-600 text-white'
@@ -148,13 +150,13 @@ export function Sidebar({ activeView, onViewChange, showSettings = true, myAssig
             }`}>
               {myAssignedCount}
             </span>
-          </button>
+          </Link>
         </div>
 
         {/* Archive */}
         <div className="mb-4">
-          <button
-            onClick={() => onViewChange('archive')}
+          <Link
+            to="/archive"
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
               activeView === 'archive'
                 ? 'bg-blue-600 text-white'
@@ -163,14 +165,14 @@ export function Sidebar({ activeView, onViewChange, showSettings = true, myAssig
           >
             <Archive size={18} />
             <span>{t('nav.archive')}</span>
-          </button>
+          </Link>
         </div>
       </nav>
 
       {showSettings && (
         <div className="p-4 border-t border-gray-800">
-          <button
-            onClick={() => onViewChange('settings')}
+          <Link
+            to="/settings"
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
               activeView === 'settings'
                 ? 'bg-blue-600 text-white'
@@ -179,7 +181,7 @@ export function Sidebar({ activeView, onViewChange, showSettings = true, myAssig
           >
             <Settings size={18} />
             <span>{t('nav.settings')}</span>
-          </button>
+          </Link>
         </div>
       )}
     </aside>
