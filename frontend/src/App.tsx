@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { useEffect } from 'react';
+// React Router v7 with BrowserRouter for client-side navigation
+import { BrowserRouter, Routes, Route, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { AlertTriangle, Settings as SettingsIcon, X, Loader2, MessageSquare } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -15,6 +16,21 @@ import { ConversationView } from './components/Inbox/ConversationView';
 import { Settings } from './components/Settings/Settings';
 import { useInstagram } from './hooks/useInstagram';
 import type { Interaction, InteractionType, Platform } from './types';
+
+// Map routes to view names for title display
+const routeToView: Record<string, string> = {
+  '/': 'dashboard',
+  '/inbox': 'all',
+  '/inbox/comments': 'comments',
+  '/inbox/messages': 'messages',
+  '/inbox/mentions': 'mentions',
+  '/channels/instagram': 'instagram',
+  '/channels/facebook': 'facebook',
+  '/channels/tiktok': 'tiktok',
+  '/my-assigned': 'my-assigned',
+  '/archive': 'archive',
+  '/settings': 'settings',
+};
 
 // View title keys for translation
 const viewTitleKeys: Record<string, string> = {
@@ -50,9 +66,29 @@ const platformFilters: Record<string, Platform | undefined> = {
 function MainApp() {
   const { t } = useTranslation();
   const { user } = useAuth();
-  const [activeView, setActiveView] = useState('dashboard');
-  const [selectedInteraction, setSelectedInteraction] = useState<Interaction | null>(null);
-  const [errorDismissed, setErrorDismissed] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { interactionId } = useParams<{ interactionId?: string }>();
+
+  // Determine active view from URL
+  const getActiveView = (): string => {
+    const path = location.pathname;
+    // Check exact matches first
+    if (routeToView[path]) return routeToView[path];
+    // Check for inbox with interaction ID
+    if (path.startsWith('/inbox/comments/')) return 'comments';
+    if (path.startsWith('/inbox/messages/')) return 'messages';
+    if (path.startsWith('/inbox/mentions/')) return 'mentions';
+    if (path.startsWith('/inbox/')) return 'all';
+    if (path.startsWith('/channels/instagram/')) return 'instagram';
+    if (path.startsWith('/channels/facebook/')) return 'facebook';
+    if (path.startsWith('/channels/tiktok/')) return 'tiktok';
+    if (path.startsWith('/my-assigned/')) return 'my-assigned';
+    if (path.startsWith('/archive/')) return 'archive';
+    return 'dashboard';
+  };
+
+  const activeView = getActiveView();
 
   // Get translated title for current view
   const getViewTitle = (view: string): string => {
@@ -93,7 +129,42 @@ function MainApp() {
   const canAssign = user?.role === 'admin' || user?.role === 'manager';
 
   // Reset error dismissed state when error changes
+  const errorDismissed = false; // Simplified - could use state if needed
   const showError = error && !errorDismissed && activeView !== 'settings';
+
+  // Find selected interaction from URL parameter
+  const findInteraction = (): Interaction | null => {
+    if (!interactionId) return null;
+
+    // Search in all interactions first
+    let found = interactions.find((i) => i.id === interactionId);
+    if (found) return found;
+
+    // Search in archived if in archive view
+    if (activeView === 'archive') {
+      found = archivedInteractions.find((i) => i.id === interactionId);
+      if (found) return found;
+    }
+
+    // Search in my assigned
+    if (activeView === 'my-assigned') {
+      found = getMyAssignedInteractions().find((i) => i.id === interactionId);
+      if (found) return found;
+    }
+
+    return null;
+  };
+
+  const selectedInteraction = findInteraction();
+
+  // Mark as read when selecting an interaction
+  useEffect(() => {
+    if (selectedInteraction && selectedInteraction.status === 'unread') {
+      markAsRead(selectedInteraction.id).catch((err) => {
+        console.error('Failed to mark as read:', err);
+      });
+    }
+  }, [selectedInteraction?.id]);
 
   const handleSendReply = async (message: string) => {
     if (!selectedInteraction) return;
@@ -123,35 +194,46 @@ function MainApp() {
   const isArchiveView = activeView === 'archive';
   const isMyAssignedView = activeView === 'my-assigned';
 
-  // Handle interaction selection and mark as read
-  const handleSelectInteraction = async (interaction: Interaction) => {
-    setSelectedInteraction(interaction);
-    if (interaction.status === 'unread') {
-      try {
-        await markAsRead(interaction.id);
-      } catch (err) {
-        console.error('Failed to mark as read:', err);
-      }
+  // Get base path for current view (for interaction links)
+  const getBasePath = (): string => {
+    switch (activeView) {
+      case 'comments': return '/inbox/comments';
+      case 'messages': return '/inbox/messages';
+      case 'mentions': return '/inbox/mentions';
+      case 'instagram': return '/channels/instagram';
+      case 'facebook': return '/channels/facebook';
+      case 'tiktok': return '/channels/tiktok';
+      case 'archive': return '/archive';
+      case 'my-assigned': return '/my-assigned';
+      default: return '/inbox';
     }
   };
 
+  // Handle interaction selection - navigate to URL
+  const handleSelectInteraction = (interaction: Interaction) => {
+    const basePath = getBasePath();
+    navigate(`${basePath}/${interaction.id}`);
+  };
+
   // Handle archive/unarchive
-  const handleArchive = async (interactionId: string) => {
+  const handleArchive = async (interactionIdToArchive: string) => {
     try {
-      await archiveInteraction(interactionId);
-      if (selectedInteraction?.id === interactionId) {
-        setSelectedInteraction(null);
+      await archiveInteraction(interactionIdToArchive);
+      // Navigate back to list if archived item was selected
+      if (interactionId === interactionIdToArchive) {
+        navigate(getBasePath());
       }
     } catch (err) {
       console.error('Failed to archive:', err);
     }
   };
 
-  const handleUnarchive = async (interactionId: string) => {
+  const handleUnarchive = async (interactionIdToUnarchive: string) => {
     try {
-      await unarchiveInteraction(interactionId);
-      if (selectedInteraction?.id === interactionId) {
-        setSelectedInteraction(null);
+      await unarchiveInteraction(interactionIdToUnarchive);
+      // Navigate back to list if unarchived item was selected
+      if (interactionId === interactionIdToUnarchive) {
+        navigate(getBasePath());
       }
     } catch (err) {
       console.error('Failed to unarchive:', err);
@@ -159,17 +241,17 @@ function MainApp() {
   };
 
   // Handle mark as read/unread
-  const handleMarkAsRead = async (interactionId: string) => {
+  const handleMarkAsRead = async (id: string) => {
     try {
-      await markAsRead(interactionId);
+      await markAsRead(id);
     } catch (err) {
       console.error('Failed to mark as read:', err);
     }
   };
 
-  const handleMarkAsUnread = async (interactionId: string) => {
+  const handleMarkAsUnread = async (id: string) => {
     try {
-      await markAsUnread(interactionId);
+      await markAsUnread(id);
     } catch (err) {
       console.error('Failed to mark as unread:', err);
     }
@@ -177,7 +259,7 @@ function MainApp() {
 
   // Handle assignment
   const handleAssign = async (
-    interactionId: string,
+    id: string,
     userId: number,
     interactionData?: {
       content: string;
@@ -188,15 +270,15 @@ function MainApp() {
     }
   ) => {
     try {
-      await assignInteraction(interactionId, userId, interactionData);
+      await assignInteraction(id, userId, interactionData);
     } catch (err) {
       console.error('Failed to assign:', err);
     }
   };
 
-  const handleUnassign = async (interactionId: string) => {
+  const handleUnassign = async (id: string) => {
     try {
-      await unassignInteraction(interactionId);
+      await unassignInteraction(id);
     } catch (err) {
       console.error('Failed to unassign:', err);
     }
@@ -208,19 +290,10 @@ function MainApp() {
     return allAssignments.find((a) => a.interaction_id === selectedInteraction.id);
   };
 
-  // Handle view change - prevent non-admins from accessing settings
-  const handleViewChange = (view: string) => {
-    if (view === 'settings' && !canAccessSettings) {
-      return;
-    }
-    setActiveView(view);
-  };
-
   return (
     <div className="flex h-screen bg-gray-100">
       <Sidebar
         activeView={activeView}
-        onViewChange={handleViewChange}
         showSettings={canAccessSettings}
         myAssignedCount={getMyAssignedInteractions().length}
       />
@@ -263,7 +336,7 @@ function MainApp() {
                   )}
                   {canAccessSettings && (
                     <button
-                      onClick={() => setActiveView('settings')}
+                      onClick={() => navigate('/settings')}
                       className={`inline-flex items-center gap-1.5 mt-3 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
                         connectionStatus?.errorType === 'token_expired'
                           ? 'bg-amber-100 text-amber-800 hover:bg-amber-200'
@@ -276,7 +349,7 @@ function MainApp() {
                   )}
                 </div>
                 <button
-                  onClick={() => setErrorDismissed(true)}
+                  onClick={() => {/* Could add dismiss state */}}
                   className="text-gray-400 hover:text-gray-600 transition-colors"
                   title={t('common.close')}
                 >
@@ -453,7 +526,44 @@ function AppContent() {
     return <LoginPage />;
   }
 
-  return <MainApp />;
+  return (
+    <Routes>
+      {/* Dashboard */}
+      <Route path="/" element={<MainApp />} />
+
+      {/* Inbox views */}
+      <Route path="/inbox" element={<MainApp />} />
+      <Route path="/inbox/:interactionId" element={<MainApp />} />
+      <Route path="/inbox/comments" element={<MainApp />} />
+      <Route path="/inbox/comments/:interactionId" element={<MainApp />} />
+      <Route path="/inbox/messages" element={<MainApp />} />
+      <Route path="/inbox/messages/:interactionId" element={<MainApp />} />
+      <Route path="/inbox/mentions" element={<MainApp />} />
+      <Route path="/inbox/mentions/:interactionId" element={<MainApp />} />
+
+      {/* Channel views */}
+      <Route path="/channels/instagram" element={<MainApp />} />
+      <Route path="/channels/instagram/:interactionId" element={<MainApp />} />
+      <Route path="/channels/facebook" element={<MainApp />} />
+      <Route path="/channels/facebook/:interactionId" element={<MainApp />} />
+      <Route path="/channels/tiktok" element={<MainApp />} />
+      <Route path="/channels/tiktok/:interactionId" element={<MainApp />} />
+
+      {/* My Assigned */}
+      <Route path="/my-assigned" element={<MainApp />} />
+      <Route path="/my-assigned/:interactionId" element={<MainApp />} />
+
+      {/* Archive */}
+      <Route path="/archive" element={<MainApp />} />
+      <Route path="/archive/:interactionId" element={<MainApp />} />
+
+      {/* Settings */}
+      <Route path="/settings" element={<MainApp />} />
+
+      {/* Fallback */}
+      <Route path="*" element={<MainApp />} />
+    </Routes>
+  );
 }
 
 function App() {
