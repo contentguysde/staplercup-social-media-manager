@@ -46,7 +46,7 @@
       "destination": "/api/:path*"
     },
     {
-      "source": "/((?!api/).*)",
+      "source": "/((?!api/|assets/|vite\\.svg).*)",
       "destination": "/index.html"
     }
   ],
